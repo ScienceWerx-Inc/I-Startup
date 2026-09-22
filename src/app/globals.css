@@ -1,8 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #000c18;
+  --foreground: #ededed;
+  
+  --primary: #0090FF;
+  --primary-glow: rgba(0, 144, 255, 0.4);
+  
+  --accent: #70C1FF;
+  --accent-glow: rgba(112, 193, 255, 0.4);
+  
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-hover-bg: rgba(255, 255, 255, 0.06);
+  --glass-hover-border: rgba(255, 255, 255, 0.15);
 }
 
 @theme inline {
@@ -12,15 +23,146 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    background-image: 
+      radial-gradient(circle at 15% 50%, rgba(0, 144, 255, 0.08), transparent 25%),
+      radial-gradient(circle at 85% 30%, rgba(112, 193, 255, 0.08), transparent 25%);
+    background-attachment: fixed;
+    min-height: 100vh;
   }
 }
 
-body {
+@layer utilities {
+  .glass-card {
+    @apply bg-[var(--glass-bg)] border border-[var(--glass-border)] backdrop-blur-md rounded-2xl;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  }
+  
+  .glass-card-hover {
+    @apply hover:bg-[var(--glass-hover-bg)] hover:border-[var(--glass-hover-border)] transition-all duration-300;
+  }
+  .glass-card-hover:hover {
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), 0 0 20px 0 var(--primary-glow);
+  }
+  
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-white via-[#70C1FF] to-[#0090FF];
+  }
+  
+  .btn-primary {
+    @apply relative overflow-hidden bg-gradient-to-r from-[#005bb5] to-[#0090FF] text-white px-8 py-4 rounded-xl font-semibold transition-all duration-300 flex items-center justify-center gap-2;
+    box-shadow: 0 4px 15px 0 rgba(0, 144, 255, 0.4);
+  }
+  
+  .btn-primary:hover {
+    @apply scale-105;
+    box-shadow: 0 6px 20px 0 rgba(0, 144, 255, 0.6);
+  }
+  
+  .btn-primary::after {
+    content: "";
+    @apply absolute inset-0 bg-white/20 opacity-0 transition-opacity duration-300;
+  }
+  
+  .btn-primary:hover::after {
+    @apply opacity-100;
+  }
+
+  .btn-glass {
+    @apply px-6 py-3 rounded-xl font-semibold transition-all duration-300 text-white flex items-center justify-center gap-2;
+    @apply bg-[var(--glass-bg)] border border-[var(--glass-border)] backdrop-blur-md;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  }
+  
+  .btn-glass:hover {
+    @apply bg-[var(--glass-hover-bg)] border-[var(--glass-hover-border)];
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), 0 0 20px 0 var(--primary-glow);
+  }
+}
+
+/* Custom Scrollbar for a premium feel */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
   background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+
+
+@media print {
+  body.printing-report {
+    background: white !important;
+    color: black !important;
+  }
+  
+  body.printing-report .bg-\[var\(--primary-glow\)\] {
+    display: none !important;
+  }
+  
+  body.printing-report header, 
+  body.printing-report nav,
+  body.printing-report button,
+  body.printing-report form,
+  body.printing-report .avatar,
+  body.printing-report img:not(#report-content img) {
+    display: none !important;
+  }
+  
+  body.printing-report .flex.items-start.gap-4:not(:has(#report-content)) {
+    display: none !important;
+  }
+  
+  body.printing-report, 
+  body.printing-report html, 
+  body.printing-report main,
+  body.printing-report .min-h-screen,
+  body.printing-report .container,
+  body.printing-report .overflow-y-auto,
+  body.printing-report .overflow-hidden,
+  body.printing-report .h-\[75vh\],
+  body.printing-report .h-screen,
+  body.printing-report .flex-1,
+  body.printing-report .glass-card {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+    display: block !important;
+    background: white !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    transform: none !important;
+  }
+
+  body.printing-report #report-content {
+    display: block !important;
+    width: 100% !important;
+    color: black !important;
+    background: white !important;
+    padding: 2cm !important;
+    margin: 0 auto !important;
+  }
+  
+  body.printing-report .prose * {
+    color: black !important;
+  }
+  
+  @page {
+    margin: 0;
+  }
 }

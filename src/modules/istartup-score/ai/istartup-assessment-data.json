@@ -1,0 +1,48 @@
+{
+  "assessmentConfig": {
+    "name": "iSTARTUP_Core_Assessment",
+    "description": "Conversational startup assessment that asks 26 structured questions, one at a time, in varied styles.",
+    "questions": [
+        { "id": 1, "isFixed": true, "question": "Please describe your startup and what problem it solves." },
+        { "id": 2, "variations": ["How would you rate your team’s industry experience and track record on a scale of 1 to 5?", "On a scale of 1–5, how experienced is your team in this industry?", "Let’s talk about your team — how strong is their background and track record? (1–5)"] },
+        { "id": 3, "variations": ["How open are the founders to receiving feedback or mentorship? (1–5)", "Would you say your team is coachable and receptive to advice? (1–5)", "Rate your founders’ openness to guidance and feedback from mentors. (1–5)"] },
+        { "id": 4, "variations": ["Does your startup have an advisory board with experienced industry experts? (1–5)", "How strong is your advisory board in terms of relevant expertise? (1–5)", "Would you say your advisory board includes credible and relevant experts? (1–5)"] },
+        { "id": 5, "variations": ["How confident would an investor be that your team will use their investment wisely? (1–5)", "From an investor’s perspective, how trustworthy is your team in using funds effectively? (1–5)", "Rate your team’s ability to manage investment capital responsibly. (1–5)"] },
+        { "id": 6, "variations": ["Does your team have a clear and actionable vision for growth? (1–5)", "How solid and practical is your team’s vision for scaling the business? (1–5)", "Rate the clarity and realism of your team’s growth vision. (1–5)"] },
+        { "id": 7, "variations": ["Do you currently have paying customers or active users? (1 = none, 5 = strong adoption)", "How far have you reached in gaining paying users or customers? (1–5)", "What’s your traction level — any paying customers yet? (1–5)"] },
+        { "id": 8, "variations": ["How fast are your target customers adopting the product? (1 = slow, 5 = rapid growth)", "What’s the pace of customer adoption right now? (1–5)", "Would you say your user adoption is slow, steady, or viral? (1–5)"] },
+        { "id": 9, "variations": ["Do you have strong ecosystem support — such as partners, advisors, or mentors? (1–5)", "How supportive is your immediate startup ecosystem? (1–5)", "Rate the level of support you’re getting from your network or ecosystem. (1–5)"] },
+        { "id": 10, "variations": ["Has your startup received any form of external recognition, such as media coverage or event pitches? (1–5)", "Any notable external validation so far — competitions, conferences, or press mentions? (1–5)", "Rate your level of public or industry validation. (1–5)"] },
+        { "id": 11, "variations": ["Are there measurable growth indicators like revenue, user base, or partnerships? (1–5)", "Can you quantify your startup’s growth so far — revenue, users, or deals? (1–5)", "How visible are your growth metrics at this stage? (1–5)"] },
+        { "id": 12, "variations": ["How well does your revenue model align with industry standards? (1–5)", "Is your revenue generation strategy realistic and in line with your market? (1–5)", "Rate your business model’s fit with your industry norms. (1–5)"] },
+        { "id": 13, "variations": ["How scalable is your business model — can it grow fast without massive costs? (1–5)", "Would your model handle exponential growth efficiently? (1–5)", "Rate the scalability of your business model. (1–5)"] },
+        { "id": 14, "variations": ["How well does your startup understand its industry and innovate within it? (1–5)", "Rate your understanding of the industry landscape and innovation potential. (1–5)", "How deep is your team’s insight into your industry’s dynamics? (1–5)"] },
+        { "id": 15, "variations": ["Is there a clear value proposition for all your stakeholders — customers, investors, and partners? (1–5)", "How clear is your startup’s value proposition across all target groups? (1–5)", "Rate how well-defined your value proposition is for different audiences. (1–5)"] },
+        { "id": 16, "variations": ["Can your business model support long-term growth and profitability? (1–5)", "How sustainable is your model for long-term success? (1–5)", "Rate your business model’s potential for future profitability. (1–5)"] },
+        { "id": 17, "variations": ["Are there specific market trends or timing factors driving demand for your solution? (1–5)", "Why is now the right time for your solution? Rate the urgency. (1–5)", "How strong are the market drivers for your product at this moment? (1–5)"] },
+        { "id": 18, "variations": ["How well-equipped is your team to develop and deliver this product? (1–5)", "Rate your team’s fit for building and executing this product. (1–5)", "Do you feel your team has the ideal skills for this product? (1–5)"] },
+        { "id": 19, "variations": ["Is there an urgency to act now — perhaps due to trends or technologies? (1–5)", "Would delaying your launch lose market momentum? (1–5)", "How urgent is it to capitalize on the current market window? (1–5)"] },
+        { "id": 20, "variations": ["Do you have IP or patents that protect your innovation? (1–5)", "Rate the level of IP protection your startup holds. (1–5)", "Is there any intellectual property ensuring your competitive edge? (1–5)"] },
+        { "id": 21, "variations": ["Has your core concept been validated through feedback or pilot results? (1–5)", "How confident are you that your concept works, based on user feedback? (1–5)", "Rate your validation stage — do results or users back your concept? (1–5)"] },
+        { "id": 22, "variations": ["Is your target market large enough to support significant scale (e.g., $500M+)? (1–5)", "Rate your market size in terms of long-term potential. (1–5)", "How big is the total addressable market for your solution? (1–5)"] },
+        { "id": 23, "variations": ["Is your target market growing rapidly — say, over 10% annually? (1–5)", "Rate your market’s growth rate. (1–5)", "How fast is your industry expanding? (1–5)"] },
+        { "id": 24, "variations": ["Are customer pain points clearly defined and effectively solved by your startup? (1–5)", "How well do you address your users’ main pain points? (1–5)", "Rate the relevance of your solution to the key problems your users face. (1–5)"] },
+        { "id": 25, "variations": ["Does your startup have a unique and differentiated approach? (1–5)", "How distinct is your solution compared to competitors? (1–5)", "Rate your level of differentiation in the market. (1–5)"] },
+        { "id": 26, "variations": ["Is your startup aligned with current market trends and customer demands? (1–5)", "How well does your startup fit today’s market direction? (1–5)", "Rate how relevant your startup is to current trends. (1–5)"] }
+    ]
+  },
+  "categoryWeights": {
+    "Management": 0.20,
+    "Momentum": 0.25,
+    "Business Model": 0.20,
+    "Motivation": 0.15,
+    "Market": 0.20
+  },
+  "questionPoints": [
+    20, 20, 20, 20, 20,
+    30, 20, 20, 15, 15, 15,
+    25, 25, 20, 15, 15,
+    25, 25, 20, 15, 15,
+    25, 20, 20, 20, 20, 20
+  ]
+}

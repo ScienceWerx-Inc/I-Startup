@@ -33,6 +33,7 @@ A unified, AI-powered benchmarking platform designed to evaluate early-stage sta
 | **Animations** | [Framer Motion](https://www.framer.com/motion/) |
 | **Validation** | [Zod](https://zod.dev/) |
 | **PDF Generation** | `jspdf` & `html2canvas` |
+| **Analytics** | [@vercel/analytics](https://vercel.com/analytics) |
 | **Icons** | [Lucide React](https://lucide.dev/) |
 
 ---

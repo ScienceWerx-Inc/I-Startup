@@ -1,36 +1,110 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🚀 iSTARTUP Score — Startup Readiness Benchmark
 
-## Getting Started
+A unified, AI-powered benchmarking platform designed to evaluate early-stage startups on **Feasibility**, **Market Viability**, and **Execution Readiness**. 
 
-First, run the development server:
+`iSTARTUP Score` measures your intellectual property, team capability, business model strength, and market momentum to deliver an actionable, fundability report for venture capital, incubators (e.g. Plug and Play), and non-dilutive grant agencies.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+---
+
+## 🌟 Key Features
+
+- **⚡ Interactive AI Interview**: Dynamic chat-driven evaluation powered by **Google Genkit** and **Gemini 2.5 Flash**.
+- **📊 5-Vector Score Breakdown**:
+  - 👤 **Management** (Team capability, advisory strength, operational experience)
+  - 🚀 **Momentum** (Traction, milestones, customer growth, product velocity)
+  - 💼 **Business Model** (Pricing, unit economics, revenue defensibility, scalable IP)
+  - 🔥 **Motivation** (Founder vision, market urgency, problem-solution alignment)
+  - 🎯 **Market** (TAM/SAM/SOM size, competitive positioning, barrier to entry)
+- **📜 Comprehensive Benchmark Report**: Generates structured markdown analysis, weighted category scores, and growth recommendations.
+- **📄 Instant PDF Export**: High-fidelity PDF report generation for investors and grant applications (`jspdf` + `html2canvas`).
+- **🎨 Glassmorphic Premium Design System**: Dark theme styled with custom gradients, smooth micro-animations (`framer-motion`), and Tailwind CSS v4.
+
+---
+
+## 🛠️ Technology Stack
+
+| Layer | Technology |
+| :--- | :--- |
+| **Framework** | [Next.js 16 (App Router)](https://nextjs.org/) + React 19 |
+| **Language** | [TypeScript](https://www.typescriptlang.org/) |
+| **AI Orchestration** | [Google Genkit](https://firebase.google.com/docs/genkit) + `@genkit-ai/google-genai` |
+| **AI Model** | Google Gemini 2.5 Flash |
+| **Styling** | [Tailwind CSS v4](https://tailwindcss.com/) + Custom Glassmorphism CSS |
+| **Animations** | [Framer Motion](https://www.framer.com/motion/) |
+| **Validation** | [Zod](https://zod.dev/) |
+| **PDF Generation** | `jspdf` & `html2canvas` |
+| **Icons** | [Lucide React](https://lucide.dev/) |
+
+---
+
+## 📁 Project Structure
+
+```text
+istartup-standalone/
+├── public/                  # Static assets & fallbacks
+├── src/
+│   ├── ai/                  # Genkit configuration & Google AI initialization
+│   ├── app/                 # Next.js App Router (Layout, Page, Metadata, Icons)
+│   ├── components/          # Shared UI primitives (Radix UI, buttons, toasts)
+│   ├── firebase.ts          # Firebase client configuration
+│   ├── hooks/               # Custom React hooks
+│   ├── lib/                 # Utility functions & class names merger
+│   └── modules/
+│       └── istartup-score/  # Core Domain Module
+│           ├── ai/          # Assessment rules, config JSON, & AI scoring flow
+│           ├── app/         # Landing page & Interview evaluation pages
+│           └── components/  # AI Chat interface & scoring report renderer
+├── package.json
+└── tsconfig.json
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🚀 Getting Started
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Prerequisites
 
-## Learn More
+- Node.js 18.x or higher
+- `npm` / `yarn` / `pnpm` / `bun`
+- Google Gemini API Key
 
-To learn more about Next.js, take a look at the following resources:
+### Installation
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/ScienceWerx-Inc/I-Startup.git
+   cd istartup-standalone
+   ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
 
-## Deploy on Vercel
+3. **Configure Environment Variables**:
+   Create a `.env.local` file in the project root:
+   ```env
+   GEMINI_API_KEY=your_google_gemini_api_key_here
+   ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+4. **Run the Development Server**:
+   ```bash
+   npm run dev
+   ```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser to explore the landing page and start an evaluation interview at `/interview`.
+
+---
+
+## 📦 Scripts
+
+- `npm run dev`: Starts the Next.js dev server with Turbopack.
+- `npm run build`: Compiles and builds the production application.
+- `npm run start`: Starts the Next.js production server.
+- `npm run lint`: Runs ESLint for code quality checks.
+
+---
+
+## 📄 License
+
+Private & Confidential — ScienceWerx Inc. / iSTARTUP. All rights reserved.

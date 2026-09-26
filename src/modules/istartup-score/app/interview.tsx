@@ -4,11 +4,9 @@ import React, { Suspense, useCallback, useEffect, useMemo, useState } from "reac
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { collection, doc, getDocs, serverTimestamp, setDoc } from "firebase/firestore";
 import { Loader2, LogIn, Shield, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { useFirestore } from "@/firebase";
 import { useAuth } from "@/hooks/use-auth";
 import { useUserRole } from "@/hooks/use-user-role";
 import { getApplicationById } from "@/lib/data";
@@ -46,7 +44,6 @@ function IstartupInterviewPageComponent() {
     const searchParams = useSearchParams();
     const { user, isLoading: authLoading } = useAuth();
     const { isAdmin, isLoading: roleLoading } = useUserRole();
-    const firestore = useFirestore();
 
     const appIdFromUrl = searchParams.get('appId');
     const errorFromUrl = searchParams.get('error');
@@ -106,35 +103,36 @@ function IstartupInterviewPageComponent() {
         description: verifiedApplication?.abstract || verifiedApplication?.inventionDescription || "",
     }), [companyOwner, verifiedApplication]);
 
-    /** Archives the report with the linked application. A no-op when Firestore is not configured. */
+    /** Archives the report in Vercel Postgres via /api/reports. Works for linked and anonymous assessments. */
     const saveReport = useCallback(async (report: IStartupReport) => {
-        if (!firestore || !isLinked) return;
         try {
-            const reportsCollection = collection(firestore, `applications/${verifiedApplication.id}/istartup-reports`);
-            const snapshot = await getDocs(reportsCollection);
-            const docRef = doc(reportsCollection, `REPORT${snapshot.size + 1}`);
-            await setDoc(docRef, {
-                startupName: report.profile.name,
-                profile: report.profile,
-                companyInfo: companyOwner ? {
-                    name: companyOwner.companyName || companyOwner.institutionName,
-                    type: companyOwner.companyType,
-                    incorporationState: companyOwner.stateOfIncorporation,
-                    incorporationYear: companyOwner.yearOfIncorporation,
-                    officerName: companyOwner.officerName,
-                } : null,
-                answers: report.answers,
-                scores: report.categories.map((c) => ({ category: c.title, score: c.percent })),
-                finalScore: report.finalScore,
-                band: report.band.code,
-                createdAt: serverTimestamp(),
+            const res = await fetch('/api/reports', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    appId: verifiedApplication?.id ?? null,
+                    startupName: report.profile.name,
+                    profile: report.profile,
+                    companyInfo: companyOwner ? {
+                        name: companyOwner.companyName || companyOwner.institutionName,
+                        type: companyOwner.companyType,
+                        incorporationState: companyOwner.stateOfIncorporation,
+                        incorporationYear: companyOwner.yearOfIncorporation,
+                        officerName: companyOwner.officerName,
+                    } : null,
+                    answers: report.answers,
+                    scores: report.categories.map((c) => ({ category: c.title, score: c.percent })),
+                    finalScore: report.finalScore,
+                    band: report.band.code,
+                }),
             });
+            if (!res.ok) throw new Error(`Save failed: ${res.status}`);
             setSaveState("saved");
         } catch (error) {
             console.error("Failed to save report:", error);
             setSaveState("failed");
         }
-    }, [firestore, isLinked, verifiedApplication, companyOwner]);
+    }, [verifiedApplication, companyOwner]);
 
     const headerRight = isLinked ? (
         <span className="inline-flex items-center gap-1.5 rounded-full border border-good/30 bg-good-soft px-2.5 py-1 font-mono text-[11px] font-medium text-good">

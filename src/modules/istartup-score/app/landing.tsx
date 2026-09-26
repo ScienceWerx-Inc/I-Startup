@@ -1,194 +1,210 @@
-"use client";
-
-import React, { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, ShieldCheck, Zap, AreaChart } from "lucide-react";
-import { motion } from "framer-motion";
+import { ArrowRight, Banknote, Compass, Rocket } from "lucide-react";
 
-function Reveal({
-  children,
-  delay = 0,
-}: {
-  children: ReactNode;
-  delay?: number;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 30 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-100px" }}
-      transition={{ duration: 0.8, delay: delay / 1000, ease: [0.25, 0.4, 0.25, 1] }}
-    >
-      {children}
-    </motion.div>
-  );
-}
+import { Reveal } from "@/components/reveal";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-const pillars = [
+import { MAX_SCORE, QUESTIONS, SECTIONS } from "../assessment/bank";
+import { Eyebrow, SiteHeader, Wordmark } from "../components/chrome";
+
+const steps = [
   {
-    tag: "Feasibility",
-    title: "Technology Assessment",
-    description: "Evaluates your IP and tech foundation to ensure it is robust, scalable, and defensible in a competitive market.",
-    icon: Zap
+    n: "01",
+    title: "Profile your startup",
+    description: "Name, stage, sector, team and funding to date. Unscored — it frames the report.",
   },
   {
-    tag: "Viability",
-    title: "Market Readiness",
-    description: "Analyzes target demographics, market size, and commercialization pathways to validate your business model.",
-    icon: ShieldCheck
+    n: "02",
+    title: `Answer ${QUESTIONS.length} anchored questions`,
+    description: "Five sections, one question per screen. Pick the description that matches where you are today.",
   },
   {
-    tag: "Desirability",
-    title: "Team & Execution",
-    description: "Assesses founder capability, advisory strength, and operational plans to ensure you can deliver on your promises.",
-    icon: AreaChart
-  }
+    n: "03",
+    title: "Get your readiness report",
+    description: `A score out of ${MAX_SCORE}, a breakdown by dimension, your strengths, gaps, and the actions worth the most points.`,
+  },
 ];
 
 const whyItMatters = [
   {
-    title: "Unlock Non-Dilutive Capital",
-    description: "A high iSTARTUP score serves as validation for grant agencies, significantly increasing your chances of securing early funding.",
-    icon: Zap
+    title: "Unlock non-dilutive capital",
+    description: "A strong iSTARTUP Score serves as validation for grant agencies, improving your chances of early funding.",
+    icon: Banknote,
   },
   {
-    title: "Streamlined PNPL Onboarding",
-    description: "Bypass standard vetting procedures. Scoring well accelerates your entry into the Plug and Play network and ecosystem.",
-    icon: ShieldCheck
+    title: "Streamlined PNPL onboarding",
+    description: "Scoring well accelerates your entry into the Plug and Play network and ecosystem.",
+    icon: Rocket,
   },
   {
-    title: "Identify Growth Areas",
-    description: "The detailed breakdown highlights specific areas for improvement, providing an actionable roadmap to de-risk your venture.",
-    icon: AreaChart
-  }
+    title: "A roadmap, not just a number",
+    description: "Every gap comes with a concrete next step, ranked by how many points it would recover.",
+    icon: Compass,
+  },
+];
+
+/** Illustrative only — labelled as an example on the page. */
+const SAMPLE = [
+  { title: "Management", percent: 84 },
+  { title: "Momentum", percent: 60 },
+  { title: "Business Model", percent: 72 },
+  { title: "Motivation", percent: 76 },
+  { title: "Market", percent: 68 },
 ];
 
 export default function IStartupScoreLandingPage() {
   return (
-    <div className="flex flex-col bg-[var(--background)] text-[var(--foreground)] relative min-h-screen overflow-hidden">
-      
-      {/* Abstract Glowing Background Orbs */}
-      <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-[var(--primary-glow)] rounded-full blur-[120px] opacity-30 pointer-events-none animate-pulse" style={{ animationDuration: '4s' }} />
-      <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-[var(--accent-glow)] rounded-full blur-[100px] opacity-20 pointer-events-none" />
+    <div className="min-h-screen bg-paper text-ink">
+      <SiteHeader
+        right={
+          <Link href="/interview" className={buttonVariants({ size: "sm" })}>
+            Start assessment
+          </Link>
+        }
+      />
 
-      {/* ============================================================
-          SECTION 1: HERO
-          ============================================================ */}
-      <section className="relative min-h-[90vh] flex items-center pt-32 pb-20 lg:py-32 z-10">
-        <div className="mx-auto w-full px-6 relative z-10" style={{ maxWidth: "1280px" }}>
-          <div className="max-w-4xl mx-auto text-center space-y-10">
-            <Reveal>
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-card text-xs font-mono font-medium text-[var(--accent)] mb-8 tracking-widest uppercase">
-                <span className="w-2 h-2 rounded-full bg-[var(--primary)] animate-pulse"></span>
-                Startup Readiness Benchmark
-              </div>
-              <h1 className="text-6xl sm:text-7xl lg:text-8xl font-bold tracking-tight">
-                The <span className="text-gradient">iSTARTUP</span> Score.
-              </h1>
-            </Reveal>
-
-            <Reveal delay={100}>
-              <p className="text-lg sm:text-xl text-white/70 max-w-2xl mx-auto leading-relaxed">
-                A unified benchmark that proves your intellectual property is a fundable, commercially-viable asset. Measure your capability and readiness for seed-stage venture capital and non-dilutive funding.
-              </p>
-            </Reveal>
-
-            <Reveal delay={200}>
-              <div className="pt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Link href="/interview" className="btn-primary text-lg">
-                  Get Your Score <ArrowRight className="h-5 w-5" />
-                </Link>
-                <a href="#details" className="btn-glass text-lg">
-                  Learn More
-                </a>
-              </div>
-            </Reveal>
-          </div>
-        </div>
-      </section>
-
-      {/* ============================================================
-          SECTION 2: THREE PILLARS
-          ============================================================ */}
-      <section id="details" className="relative py-28 lg:py-36 z-10">
-        <div className="mx-auto w-full px-6 relative z-10" style={{ maxWidth: "1280px" }}>
+      {/* ── Hero ── */}
+      <section className="border-b border-line">
+        <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-[1.1fr_1fr]">
           <Reveal>
-            <div className="text-center max-w-3xl mx-auto space-y-4 mb-20">
-              <div className="text-[var(--accent)] font-mono text-sm tracking-widest uppercase font-semibold">Composite Metric</div>
-              <h2 className="text-4xl md:text-5xl font-bold">
-                The Three Pillars of Your Score.
-              </h2>
-              <p className="text-white/60 text-lg leading-relaxed">
-                Your iSTARTUP Score is derived from three independent, in-depth assessments. The average of these three scores creates a single number that defines your pathway to PNPL onboarding and investment.
-              </p>
+            <Eyebrow>Startup readiness benchmark</Eyebrow>
+            <h1 className="mt-4 text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl lg:text-[56px]">
+              Know how fundable your startup is — <span className="text-brand">before investors decide.</span>
+            </h1>
+            <p className="mt-6 max-w-xl text-lg leading-relaxed text-mut">
+              The iSTARTUP Score benchmarks your venture across management, momentum, business model, motivation and
+              market — the way seed investors and grant reviewers evaluate it — and tells you exactly what to fix first.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <Link href="/interview" className={buttonVariants({ size: "lg" })}>
+                Get your score <ArrowRight className="h-4 w-4" />
+              </Link>
+              <a href="#how-it-works" className={buttonVariants({ size: "lg", variant: "outline" })}>
+                How it works
+              </a>
             </div>
+            <p className="mt-6 font-mono text-xs text-mut">
+              {QUESTIONS.length} questions · about 10 minutes · PDF report
+            </p>
           </Reveal>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {pillars.map((pillar, idx) => {
-              const Icon = pillar.icon;
-              return (
-                <Reveal key={idx} delay={idx * 100}>
-                  <div className="glass-card glass-card-hover p-8 h-full flex flex-col justify-between group relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    <div className="space-y-6">
-                      <div className="flex items-center justify-between">
-                        <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-[var(--accent)] group-hover:scale-110 group-hover:bg-[var(--primary-glow)] transition-all duration-300">
-                          <Icon className="w-7 h-7" />
-                        </div>
-                        <span className="text-[11px] font-mono text-white/50 group-hover:text-[var(--accent)] font-semibold uppercase tracking-widest transition-colors">
-                          {pillar.tag}
-                        </span>
-                      </div>
-                      <div>
-                        <h3 className="text-2xl font-bold text-white mb-3 group-hover:text-[var(--accent)] transition-colors">
-                          {pillar.title}
-                        </h3>
-                        <p className="text-base text-white/60 leading-relaxed">
-                          {pillar.description}
-                        </p>
-                      </div>
+          <Reveal delay={120}>
+            <div className="rounded-xl bg-readout p-6 text-readout-ink shadow-[0_24px_60px_-24px_rgba(11,27,43,0.45)] sm:p-7">
+              <div className="flex items-center justify-between">
+                <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-readout-mut">Example report</p>
+                <p className="rounded-full border border-readout-line px-2 py-0.5 font-mono text-[10px] text-readout-mut">Illustrative</p>
+              </div>
+              <div className="mt-5 flex items-end gap-5">
+                <p className="leading-none">
+                  <span className="font-mono text-6xl font-semibold tabular">352</span>
+                  <span className="ml-1.5 font-mono text-sm text-readout-mut">/ {MAX_SCORE}</span>
+                </p>
+                <div className="pb-1">
+                  <p className="font-semibold text-[#8CC8FF]">Strong foundation</p>
+                  <p className="text-[13px] text-readout-ink/70">Targeted fixes to investment-ready</p>
+                </div>
+              </div>
+              <div className="mt-7 space-y-3.5">
+                {SAMPLE.map((row) => (
+                  <div key={row.title} className="grid grid-cols-[112px_1fr_36px] items-center gap-3">
+                    <span className="text-[13px] text-readout-ink/85">{row.title}</span>
+                    <div className="h-2 rounded-[4px] bg-readout-line">
+                      <div className="h-full rounded-[4px] bg-brand-bright" style={{ width: `${row.percent}%` }} />
                     </div>
+                    <span className="text-right font-mono text-xs text-readout-ink tabular">{row.percent}%</span>
                   </div>
+                ))}
+              </div>
+              <div className="mt-7 rounded-lg border border-readout-line p-3.5">
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-readout-mut">Top priority action</p>
+                <p className="mt-1.5 text-[13px] leading-relaxed text-readout-ink/85">
+                  Convert pilots into paid engagements, even at a discount — one paying customer outweighs many free users.
+                </p>
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ── How it works ── */}
+      <section id="how-it-works" className="scroll-mt-16 border-b border-line bg-surface">
+        <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+          <Reveal>
+            <Eyebrow>How it works</Eyebrow>
+            <h2 className="mt-3 max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">
+              A structured assessment, not a questionnaire.
+            </h2>
+            <p className="mt-4 max-w-2xl leading-relaxed text-mut">
+              Every question offers five concrete descriptions instead of a vague 1–5 rating, so your answer is a claim you
+              can stand behind — and two founders who are in the same place get the same score.
+            </p>
+          </Reveal>
+          <ol className="mt-12 grid gap-px overflow-hidden rounded-xl border border-line bg-line md:grid-cols-3">
+            {steps.map((step, i) => (
+              <li key={step.n} className="bg-surface p-6 sm:p-7">
+                <Reveal delay={i * 80}>
+                  <p className="font-mono text-xs font-semibold text-brand">{step.n}</p>
+                  <h3 className="mt-3 text-lg font-semibold">{step.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-mut">{step.description}</p>
                 </Reveal>
-              );
-            })}
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* ── Dimensions ── */}
+      <section className="border-b border-line">
+        <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+          <Reveal>
+            <Eyebrow>Composite metric</Eyebrow>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Five weighted dimensions.</h2>
+            <p className="mt-4 max-w-2xl leading-relaxed text-mut">
+              Your score out of {MAX_SCORE} is the weighted sum of five independent sections. Momentum carries the most
+              weight, because evidence the market is already responding matters most at seed.
+            </p>
+          </Reveal>
+          <div className="mt-12 divide-y divide-line border-y border-line">
+            {SECTIONS.map((s, i) => (
+              <Reveal key={s.key} delay={i * 60}>
+                <div className="grid items-center gap-2 py-5 sm:grid-cols-[64px_220px_1fr_140px] sm:gap-6">
+                  <span className="font-mono text-xs text-mut">{String(s.ordinal).padStart(2, "0")}</span>
+                  <span className="text-lg font-semibold">{s.title}</span>
+                  <span className="text-sm leading-relaxed text-mut">{s.summary}</span>
+                  <span className="flex items-center gap-3 sm:justify-end">
+                    <span className="h-1.5 w-20 rounded-full bg-line">
+                      <span className="block h-full rounded-full bg-brand" style={{ width: `${(s.weight / 0.25) * 100}%` }} />
+                    </span>
+                    <span className="w-9 text-right font-mono text-sm font-semibold tabular">{Math.round(s.weight * 100)}%</span>
+                  </span>
+                </div>
+              </Reveal>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ============================================================
-          SECTION 3: WHY IT MATTERS
-          ============================================================ */}
-      <section className="relative py-28 lg:py-36 border-t border-white/5 z-10 bg-black/20">
-        <div className="mx-auto w-full px-6 relative z-10" style={{ maxWidth: "1280px" }}>
+      {/* ── Why it matters ── */}
+      <section className="border-b border-line bg-surface">
+        <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
           <Reveal>
-            <div className="max-w-3xl mb-20 space-y-4">
-              <div className="text-[var(--accent)] font-mono text-sm tracking-widest uppercase font-semibold">Venture Metrics</div>
-              <h2 className="text-4xl md:text-5xl font-bold">
-                Why Your Score Matters.
-              </h2>
-              <p className="text-white/60 text-lg leading-relaxed">
-                In the competitive world of early-stage funding, a strong idea is not enough. Investors and grant agencies need to see that you have a viable business with the potential for execution. The iSTARTUP Score provides that proof.
-              </p>
-            </div>
+            <Eyebrow>Why it matters</Eyebrow>
+            <h2 className="mt-3 max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">
+              A strong idea is not enough. Investors need proof of execution.
+            </h2>
           </Reveal>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {whyItMatters.map((item, idx) => {
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
+            {whyItMatters.map((item, i) => {
               const Icon = item.icon;
               return (
-                <Reveal key={idx} delay={idx * 100}>
-                  <div className="p-8 rounded-2xl bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 transition-all duration-300 h-full group">
-                    <div className="bg-[var(--primary-glow)] w-12 h-12 flex items-center justify-center rounded-xl mb-6 group-hover:scale-110 transition-transform duration-300">
-                      <Icon className="w-6 h-6 text-[var(--accent)]" />
-                    </div>
-                    <h3 className="text-xl font-bold text-white mb-3">
-                      {item.title}
-                    </h3>
-                    <p className="text-base text-white/60 leading-relaxed">
-                      {item.description}
-                    </p>
+                <Reveal key={item.title} delay={i * 80}>
+                  <div className="h-full rounded-xl border border-line p-6">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-soft text-brand">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <h3 className="mt-5 text-lg font-semibold">{item.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-mut">{item.description}</p>
                   </div>
                 </Reveal>
               );
@@ -197,37 +213,33 @@ export default function IStartupScoreLandingPage() {
         </div>
       </section>
 
-      {/* ============================================================
-          SECTION 4: CTA
-          ============================================================ */}
-      <section className="relative py-32 lg:py-48 border-t border-white/10 text-center overflow-hidden z-10">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[var(--primary-glow)] opacity-20 pointer-events-none" />
-        
-        <div className="mx-auto w-full px-6 relative z-10" style={{ maxWidth: "1280px" }}>
-          <div className="max-w-4xl mx-auto space-y-10">
-            <Reveal>
-              <div className="text-[var(--accent)] font-mono text-sm tracking-widest uppercase font-semibold mb-4">Validate Your Business</div>
-              <h2 className="text-5xl md:text-7xl font-bold">
-                Ready to See <span className="text-gradient">Where You Stand?</span>
-              </h2>
-            </Reveal>
-
-            <Reveal delay={100}>
-              <p className="text-lg md:text-xl text-white/70 max-w-2xl mx-auto leading-relaxed">
-                Your iSTARTUP Score is a critical component of the PNPL application process. Apply today to get your score and unlock your path to funding and commercialization.
+      {/* ── CTA ── */}
+      <section>
+        <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+          <div className="flex flex-col items-start justify-between gap-8 rounded-xl bg-readout p-8 text-readout-ink sm:p-12 md:flex-row md:items-center">
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight">Ready to see where you stand?</h2>
+              <p className="mt-3 max-w-xl leading-relaxed text-readout-ink/75">
+                Your iSTARTUP Score is a key part of the PNPL application. It takes about ten minutes, and your progress is
+                saved as you go.
               </p>
-            </Reveal>
-
-            <Reveal delay={200}>
-              <div className="pt-8 flex justify-center">
-                <Link href="/interview" className="btn-primary text-xl px-10 py-5">
-                  Calculate Your Score <ArrowRight className="h-6 w-6 ml-2" />
-                </Link>
-              </div>
-            </Reveal>
+            </div>
+            <Link
+              href="/interview"
+              className={cn(buttonVariants({ size: "lg" }), "shrink-0 bg-surface text-ink hover:bg-brand-soft")}
+            >
+              Calculate your score <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
         </div>
       </section>
+
+      <div className="border-t border-line">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-8 text-xs text-mut sm:px-6">
+          <Wordmark />
+          <span>© {new Date().getFullYear()} ScienceWerx · iSTARTUP Score</span>
+        </div>
+      </div>
     </div>
   );
 }

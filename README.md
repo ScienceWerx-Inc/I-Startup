@@ -8,16 +8,18 @@ A unified, AI-powered benchmarking platform designed to evaluate early-stage sta
 
 ## 🌟 Key Features
 
-- **⚡ Interactive AI Interview**: Dynamic chat-driven evaluation powered by **Google Genkit** and **Gemini 2.5 Flash**.
-- **📊 5-Vector Score Breakdown**:
-  - 👤 **Management** (Team capability, advisory strength, operational experience)
-  - 🚀 **Momentum** (Traction, milestones, customer growth, product velocity)
-  - 💼 **Business Model** (Pricing, unit economics, revenue defensibility, scalable IP)
-  - 🔥 **Motivation** (Founder vision, market urgency, problem-solution alignment)
-  - 🎯 **Market** (TAM/SAM/SOM size, competitive positioning, barrier to entry)
-- **📜 Comprehensive Benchmark Report**: Generates structured markdown analysis, weighted category scores, and growth recommendations.
-- **📄 Instant PDF Export**: High-fidelity PDF report generation for investors and grant applications (`jspdf` + `html2canvas`).
-- **🎨 Glassmorphic Premium Design System**: Dark theme styled with custom gradients, smooth micro-animations (`framer-motion`), and Tailwind CSS v4.
+- **🧭 Structured Assessment (FounderFit-style)**: Intro → startup profile → five sections, each with its own brief → one question per screen → review → report. Every question offers **five written answer anchors** instead of a bare 1–5 rating, with a clickable progress track, Back/Review navigation, keyboard shortcuts (1–5, ←/→), and progress saved on the device so founders can resume.
+- **📊 5-Vector Score Breakdown** (weight in final score):
+  - 👤 **Management** — 20% (team track record, coachability, advisors, capital stewardship, growth vision)
+  - 🚀 **Momentum** — 25% (traction, adoption pace, ecosystem, external validation, measurable growth)
+  - 💼 **Business Model** — 20% (revenue model, scalability, industry insight, value proposition, profitability)
+  - 🔥 **Motivation** — 15% (market timing, team–product fit, urgency, IP protection, concept validation)
+  - 🎯 **Market** — 20% (market size, growth, customer pain, differentiation, trend alignment)
+- **📜 Readiness Report**: A score out of 500 with a readiness band, per-dimension bars, key strengths, critical gaps, and priority actions ranked by the points each would recover, plus a full response appendix.
+- **📄 PDF Export**: Print-optimised report layout (`window.print()` → Save as PDF).
+- **🎨 Professional Design System**: A restrained light "research instrument" identity (IBM Plex, navy ink, iSTARTUP blue) shared by the landing page, assessment, and report.
+
+The question bank lives in `src/modules/istartup-score/assessment/bank.ts` and scoring in `assessment/scoring.ts` (pure, deterministic functions).
 
 ---
 
@@ -52,9 +54,9 @@ istartup-standalone/
 │   ├── lib/                 # Utility functions & class names merger
 │   └── modules/
 │       └── istartup-score/  # Core Domain Module
-│           ├── ai/          # Assessment rules, config JSON, & AI scoring flow
-│           ├── app/         # Landing page & Interview evaluation pages
-│           └── components/  # AI Chat interface & scoring report renderer
+│           ├── assessment/  # Question bank & deterministic scoring
+│           ├── app/         # Landing page & assessment page
+│           └── components/  # Assessment shell, report view & shared chrome
 ├── package.json
 └── tsconfig.json
 ```

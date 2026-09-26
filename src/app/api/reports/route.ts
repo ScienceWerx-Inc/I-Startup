@@ -1,6 +1,6 @@
 import { sql } from '@vercel/postgres';
 import { ensureReportsTable, isDatabaseConfigured } from '@/lib/db';
-import { ReportPayloadSchema, type ReportRow } from '@/lib/reports';
+import { GeoSchema, ReportPayloadSchema, type ReportRow } from '@/lib/reports';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,12 +30,18 @@ export async function POST(request: Request) {
   }
 
   const p = parsed.data;
+  // Approximate submitter location from Vercel edge headers (absent locally).
+  const geo = GeoSchema.parse({
+    country: request.headers.get('x-vercel-ip-country'),
+    region: request.headers.get('x-vercel-ip-country-region'),
+    city: request.headers.get('x-vercel-ip-city'),
+  });
 
   try {
     await ensureReportsTable();
     const { rows } = await sql<ReportRow>`
       INSERT INTO istartup_reports
-        (app_id, startup_name, profile, company_info, answers, scores, final_score, band)
+        (app_id, startup_name, profile, company_info, answers, scores, final_score, band, country, region, city)
       VALUES
         (
           ${p.appId ?? null},
@@ -45,9 +51,12 @@ export async function POST(request: Request) {
           ${JSON.stringify(p.answers)}::jsonb,
           ${JSON.stringify(p.scores)}::jsonb,
           ${p.finalScore},
-          ${p.band}
+          ${p.band},
+          ${geo.country ?? null},
+          ${geo.region ?? null},
+          ${decodeURIComponent(geo.city ?? '') || null}
         )
-      RETURNING id, app_id, startup_name, profile, company_info, answers, scores, final_score, band, created_at;
+      RETURNING id, app_id, startup_name, profile, company_info, answers, scores, final_score, band, country, region, city, created_at;
     `;
     return Response.json({ id: rows[0].id, report: rows[0] }, { status: 201 });
   } catch (error) {
@@ -76,14 +85,14 @@ export async function GET(request: Request) {
     await ensureReportsTable();
     const { rows } = appId
       ? await sql<ReportRow>`
-          SELECT id, app_id, startup_name, profile, company_info, answers, scores, final_score, band, created_at
+          SELECT id, app_id, startup_name, profile, company_info, answers, scores, final_score, band, country, region, city, created_at
           FROM istartup_reports
           WHERE app_id = ${appId}
           ORDER BY created_at DESC
           LIMIT ${limit};
         `
       : await sql<ReportRow>`
-          SELECT id, app_id, startup_name, profile, company_info, answers, scores, final_score, band, created_at
+          SELECT id, app_id, startup_name, profile, company_info, answers, scores, final_score, band, country, region, city, created_at
           FROM istartup_reports
           ORDER BY created_at DESC
           LIMIT ${limit};

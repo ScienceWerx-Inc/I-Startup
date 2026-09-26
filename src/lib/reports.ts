@@ -22,6 +22,15 @@ export const ReportPayloadSchema = z.object({
 
 export type ReportPayload = z.infer<typeof ReportPayloadSchema>;
 
+/** Approximate location from Vercel IP geolocation headers (country/region/city). */
+export const GeoSchema = z.object({
+  country: z.string().max(4).nullish(),
+  region: z.string().max(120).nullish(),
+  city: z.string().max(120).nullish(),
+});
+
+export type Geo = z.infer<typeof GeoSchema>;
+
 export interface ReportRow {
   id: string;
   app_id: string | null;
@@ -32,5 +41,8 @@ export interface ReportRow {
   scores: unknown;
   final_score: number;
   band: string;
+  country: string | null;
+  region: string | null;
+  city: string | null;
   created_at: string;
 }

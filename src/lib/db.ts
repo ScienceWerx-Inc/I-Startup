@@ -62,4 +62,12 @@ export async function ensureReportsTable(): Promise<void> {
     CREATE INDEX IF NOT EXISTS istartup_reports_app_id_idx
       ON istartup_reports (app_id, created_at DESC);
   `;
+  // Geo columns (Vercel IP geolocation, captured at submit time).
+  await sql`ALTER TABLE istartup_reports ADD COLUMN IF NOT EXISTS country TEXT NULL;`;
+  await sql`ALTER TABLE istartup_reports ADD COLUMN IF NOT EXISTS region TEXT NULL;`;
+  await sql`ALTER TABLE istartup_reports ADD COLUMN IF NOT EXISTS city TEXT NULL;`;
+  await sql`
+    CREATE INDEX IF NOT EXISTS istartup_reports_country_idx
+      ON istartup_reports (country, created_at DESC);
+  `;
 }

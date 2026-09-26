@@ -8,8 +8,39 @@ import { sql } from '@vercel/postgres';
  * migrations see `db/migrations/001_istartup_reports.sql`.
  */
 
+/**
+ * Resolves the Postgres connection string.
+ *
+ * Vercel names the vars `POSTGRES_URL` when the store is created for the
+ * project, but prefixes them (`<store>_POSTGRES_URL`) when connecting an
+ * existing Neon store — as with `istartup_postgres_*` here. Accept both.
+ */
+const CONNECTION_CANDIDATES = [
+  'POSTGRES_URL',
+  'istartup_postgres_POSTGRES_URL',
+  'DATABASE_URL',
+  'istartup_postgres_DATABASE_URL',
+  'POSTGRES_PRISMA_URL',
+  'istartup_postgres_POSTGRES_PRISMA_URL',
+];
+
+export function connectionString(): string | null {
+  for (const key of CONNECTION_CANDIDATES) {
+    const value = process.env[key];
+    if (value) return value;
+  }
+  return null;
+}
+
 export function isDatabaseConfigured(): boolean {
-  return Boolean(process.env.POSTGRES_URL);
+  return connectionString() !== null;
+}
+
+// Point the default @vercel/postgres client at the resolved var so every
+// `sql` call site works unchanged regardless of the Vercel prefix.
+if (!process.env.POSTGRES_URL) {
+  const resolved = connectionString();
+  if (resolved) process.env.POSTGRES_URL = resolved;
 }
 
 export async function ensureReportsTable(): Promise<void> {

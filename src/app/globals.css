@@ -36,6 +36,87 @@
   --readout-line: #22364b;
   --readout-mut: #93a4b8;
   --readout-ink: #eef3f8;
+
+}
+
+/*
+ * Landing-page design system, scoped to `.theme-landing` so the assessment and report
+ * keep their own paper palette. Colours, radii, shadows, spacing and type all live here.
+ *
+ * Contrast: navy text is 16:1 and muted text 5.7:1 on --bg; blue (#1769ff) and purple
+ * (#7657ff) pass AA as text. Green, orange and pink are fill-only — never text.
+ */
+.theme-landing {
+  /* Palette */
+  --navy: #0b1730;
+  --navy-2: #132447;
+  --blue: #1769ff;
+  --blue-hover: #0f5ae6;
+  --blue-electric: #3d8bff;
+  --blue-soft: #eaf3ff;
+  --purple: #7657ff;
+  --lavender: #f1eeff;
+  --green: #28b978;
+  --orange: #ff9d4d;
+  --pink: #ef5da8;
+
+  /* Roles */
+  --bg: #f7f8fb;
+  --surface: #ffffff;
+  --surface-2: #f3f6fb;
+  --border: #e6eaf2;
+  --border-strong: #d3dae6;
+  --text: var(--navy);
+  --text-muted: #5b6478;
+  --accent: var(--blue);
+  --accent-hover: var(--blue-hover);
+  --accent-ink: #ffffff;
+  /* Text on the dark navy CTA band */
+  --on-dark: #ffffff;
+  --on-dark-muted: rgba(255, 255, 255, 0.72);
+
+  /* One colour per scored dimension, used everywhere that dimension appears. */
+  --dim-management: var(--blue);
+  --dim-momentum: var(--purple);
+  --dim-business-model: var(--green);
+  --dim-market: var(--orange);
+  --dim-motivation: var(--pink);
+
+  /* Radii */
+  --r-sm: 14px;
+  --r-md: 18px;
+  --r-lg: 24px;
+
+  /* Layered, low-opacity shadows */
+  --elev-hairline: 0 1px 2px rgba(11, 23, 48, 0.04);
+  --elev-card: 0 1px 2px rgba(11, 23, 48, 0.04), 0 4px 12px -2px rgba(11, 23, 48, 0.05);
+  --elev-raised: 0 1px 2px rgba(11, 23, 48, 0.04), 0 12px 32px -8px rgba(11, 23, 48, 0.1);
+  --elev-float: 0 2px 4px rgba(11, 23, 48, 0.04), 0 24px 64px -16px rgba(11, 23, 48, 0.16);
+  --elev-glow: 0 8px 24px -6px color-mix(in oklab, var(--blue) 45%, transparent);
+
+  /* Spacing (on top of Tailwind's 4px scale) */
+  --space-section: clamp(3.5rem, 2.5rem + 3vw, 5.5rem);
+  --space-gutter: 1rem;
+
+  /* Type */
+  --fs-body: 1rem;
+  --fs-lead: clamp(1rem, 0.95rem + 0.25vw, 1.0625rem);
+  --leading-body: 1.65;
+
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+@media (min-width: 640px) {
+  .theme-landing {
+    --space-gutter: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .theme-landing {
+    --space-gutter: 2rem;
+  }
 }
 
 @theme inline {
@@ -67,8 +148,42 @@
   --color-input: var(--line-strong);
   --color-destructive: var(--risk);
 
-  --font-sans: var(--font-plex-sans);
-  --font-mono: var(--font-plex-mono);
+  /* Landing tokens (resolve inside .theme-landing). */
+  --color-bg: var(--bg);
+  --color-surface-2: var(--surface-2);
+  --color-edge: var(--border);
+  --color-edge-strong: var(--border-strong);
+  --color-fg: var(--text);
+  --color-fg-muted: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
+  --color-navy: var(--navy);
+  --color-on-dark: var(--on-dark);
+  --color-on-dark-muted: var(--on-dark-muted);
+  --color-navy-2: var(--navy-2);
+  --color-blue: var(--blue);
+  --color-blue-electric: var(--blue-electric);
+  --color-blue-soft: var(--blue-soft);
+  --color-purple: var(--purple);
+  --color-lavender: var(--lavender);
+  --color-green: var(--green);
+  --color-orange: var(--orange);
+  --color-pink: var(--pink);
+
+  --radius-tile: var(--r-sm);
+  --radius-card: var(--r-md);
+  --radius-panel: var(--r-lg);
+
+  --shadow-hairline: var(--elev-hairline);
+  --shadow-card: var(--elev-card);
+  --shadow-raised: var(--elev-raised);
+  --shadow-float: var(--elev-float);
+  --shadow-glow: var(--elev-glow);
+
+  --font-sans: var(--font-cardo);
+  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-cardo);
 }
 
 @layer base {
@@ -82,6 +197,11 @@
   ::selection {
     background: var(--brand-soft);
   }
+
+  .theme-landing :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
 }
 
 @layer utilities {
@@ -91,6 +211,58 @@
 
   .tabular {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Landing page ── */
+  .section-y {
+    padding-block: var(--space-section);
+  }
+
+  .gutter-x {
+    padding-inline: var(--space-gutter);
+  }
+
+  .display-xl {
+    font-family: var(--font-display);
+    font-size: clamp(2.75rem, 1.2rem + 3.6vw, 4.5rem);
+    font-weight: 700;
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+  }
+
+  .display-lg {
+    font-family: var(--font-display);
+    font-size: clamp(2.25rem, 1.5rem + 2.6vw, 3.75rem);
+    font-weight: 700;
+    line-height: 1.06;
+    letter-spacing: -0.015em;
+  }
+
+  .lead {
+    font-size: var(--fs-lead);
+    line-height: var(--leading-body);
+    color: var(--text-muted);
+  }
+
+  .kicker {
+    font-family: var(--font-mono);
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--blue);
+  }
+
+  .bg-blue-gradient {
+    background-image: linear-gradient(135deg, var(--blue-electric) 0%, var(--blue) 55%, var(--purple) 130%);
+  }
+
+  .text-gradient {
+    background-image: linear-gradient(100deg, var(--blue) 10%, var(--purple) 95%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 }
 

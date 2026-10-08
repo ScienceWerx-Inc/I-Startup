@@ -13,7 +13,8 @@ import { getApplicationById } from "@/lib/data";
 
 import type { StartupProfile } from "../assessment/bank";
 import type { IStartupReport } from "../assessment/scoring";
-import { Eyebrow, Panel, SiteHeader } from "../components/chrome";
+import { Eyebrow, Panel } from "../components/chrome";
+import { Nav } from "../components/landing/editorial/nav";
 
 type ApplicationData = any;
 
@@ -199,7 +200,7 @@ function IstartupInterviewPageComponent() {
 
     return (
         <div className="min-h-screen bg-paper">
-            <SiteHeader right={headerRight} />
+            <Nav variant="page" right={headerRight} />
             {body}
         </div>
     );

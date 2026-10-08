@@ -43,21 +43,21 @@ export function RadarChart({ dimensions, active = false, className }: RadarChart
       aria-label={`Radar chart: ${dimensions.map((d) => `${d.title} ${d.percent}%`).join(', ')}.`}
     >
       {RINGS.map((f) => (
-        <polygon key={f} points={ring(f)} fill={f === 1 ? 'var(--surface-2)' : 'none'} stroke="var(--border)" />
+        <polygon key={f} points={ring(f)} fill={f === 1 ? 'var(--surface)' : 'none'} stroke="var(--border-strong)" />
       ))}
       {dimensions.map((d, i) => {
         const [x, y] = at(i, R);
-        return <line key={d.key} x1={CX} y1={CY} x2={x} y2={y} stroke="var(--border)" />;
+        return <line key={d.key} x1={CX} y1={CY} x2={x} y2={y} stroke="var(--border-strong)" />;
       })}
 
       <motion.polygon
         points={poly(profile)}
-        fill="var(--blue)"
-        stroke="var(--blue)"
+        fill="var(--tech)"
+        stroke="var(--tech)"
         strokeWidth="2"
         strokeLinejoin="round"
         initial={{ pathLength: 0, fillOpacity: 0 }}
-        animate={{ pathLength: 1, fillOpacity: active ? 0.18 : 0.1 }}
+        animate={{ pathLength: 1, fillOpacity: active ? 0.3 : 0.18 }}
         transition={{ pathLength: { duration: 1.1, ease: EASE_OUT, delay: 0.4 }, fillOpacity: { duration: 0.4 } }}
       />
 
@@ -71,9 +71,9 @@ export function RadarChart({ dimensions, active = false, className }: RadarChart
             <motion.circle
               cx={px}
               cy={py}
-              fill="var(--surface)"
-              stroke={d.color}
-              strokeWidth="2.5"
+              fill={d.color}
+              stroke="var(--text)"
+              strokeWidth="1.5"
               initial={{ r: 0 }}
               animate={{ r: active ? 5.5 : 4 }}
               transition={{ type: 'spring', stiffness: 300, damping: 20, delay: active ? i * 0.04 : 0.6 + i * 0.08 }}

@@ -103,13 +103,13 @@ export function CircularScore({ dimensions, active, onActive, className }: Circu
         );
       })}
 
-      <text x={CX} y={CY - 2} textAnchor="middle" fontSize="72" fontWeight="800" letterSpacing="-1" fill="var(--text)" className="font-sans tabular">
+      <text x={CX} y={CY + 6} textAnchor="middle" fontSize="104" fontWeight="700" letterSpacing="-3" fill="var(--text)" className="font-display tabular">
         {SAMPLE_SCORE}
       </text>
-      <text x={CX} y={CY + 26} textAnchor="middle" fontSize="16" fontWeight="500" fill="var(--text-muted)" className="font-sans tabular">
+      <text x={CX} y={CY + 34} textAnchor="middle" fontSize="20" fontWeight="600" fill="var(--text-muted)" className="font-display tabular">
         / {MAX_SCORE}
       </text>
-      <text x={CX} y={CY + 56} textAnchor="middle" fontSize="13" fontWeight="600" fill="var(--blue)" className="font-sans">
+      <text x={CX} y={CY + 60} textAnchor="middle" fontSize="13" fontWeight="500" fill="var(--text)" className="font-sans">
         {SAMPLE_BAND}
       </text>
     </motion.svg>

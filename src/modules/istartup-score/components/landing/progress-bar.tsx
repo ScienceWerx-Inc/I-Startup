@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 
 type ProgressBarProps = {
   percent: number;
-  /** Fill colour; defaults to the blue gradient. */
+  /** Fill colour; defaults to ink. */
   color?: string;
   delay?: number;
   className?: string;
@@ -28,7 +28,7 @@ export function ProgressBar({ percent, color, delay = 0, className }: ProgressBa
       viewport={{ once: true }}
     >
       <motion.div
-        className={cn('h-full origin-left rounded-full', !color && 'bg-blue-gradient')}
+        className={cn('h-full origin-left rounded-full', !color && 'bg-fg')}
         style={{ width: `${percent}%`, background: color }}
         variants={{ hidden: { scaleX: 0 }, shown: { scaleX: 1 } }}
         transition={{ duration: 0.9, ease: EASE_OUT, delay }}

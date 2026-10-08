@@ -670,7 +670,7 @@ function ProgressTrack({
 }) {
   const current = index >= 0 ? QUESTIONS[index] : null;
   return (
-    <div className="no-print sticky top-14 z-20 -mx-4 mb-6 bg-paper/95 px-4 pb-3 pt-3 backdrop-blur sm:-mx-6 sm:px-6">
+    <div className="no-print sticky top-[69px] z-20 -mx-4 mb-6 bg-paper/95 px-4 pb-3 pt-3 backdrop-blur sm:-mx-6 sm:px-6">
       <div className="flex items-center justify-between gap-3 text-xs text-mut">
         <span className="font-mono font-medium text-ink">
           {current ? `Question ${index + 1} of ${QUESTIONS.length}` : 'Review'}

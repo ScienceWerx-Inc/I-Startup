@@ -1,25 +1,31 @@
-import { Assessment } from "../components/landing/assessment";
-import { Benefits } from "../components/landing/benefits";
-import { CTA } from "../components/landing/cta";
-import { Footer } from "../components/landing/footer";
-import { Hero } from "../components/landing/hero";
+import { BeyondScore } from "../components/landing/editorial/beyond-score";
+import { Closing } from "../components/landing/editorial/closing";
+import { Hero } from "../components/landing/editorial/hero";
+import { Nav } from "../components/landing/editorial/nav";
+import { Plan } from "../components/landing/editorial/plan";
+import { Readiness } from "../components/landing/editorial/readiness";
+import { Working } from "../components/landing/editorial/working";
 import { MotionRoot } from "../components/landing/motion-root";
-import { Navbar } from "../components/landing/navbar";
-import { Roadmap } from "../components/landing/roadmap";
-import { ScoreBreakdown } from "../components/landing/score-breakdown";
 
+/**
+ * Know where your startup stands.
+ *
+ * Six sections, one idea — position — and one journey: assess → understand → improve →
+ * prepare. The navigation tracks that journey as you read.
+ */
 export default function IStartupScoreLandingPage() {
   return (
     <MotionRoot>
-      <div className="theme-landing min-h-screen overflow-x-clip">
-        <Navbar />
-        <Hero />
-        <Assessment />
-        <ScoreBreakdown />
-        <Roadmap />
-        <Benefits />
-        <CTA />
-        <Footer />
+      <div className="theme-ed min-h-screen overflow-x-clip">
+        <Nav />
+        <main>
+          <Hero />
+          <BeyondScore />
+          <Working />
+          <Plan />
+          <Readiness />
+          <Closing />
+        </main>
       </div>
     </MotionRoot>
   );

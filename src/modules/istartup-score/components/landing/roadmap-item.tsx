@@ -29,15 +29,15 @@ export function RoadmapItem({ step, index, open, last, onToggle }: RoadmapItemPr
       <div className="relative flex justify-center" aria-hidden>
         <span
           className={cn(
-            'relative z-10 mt-3 flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold tabular',
-            first ? 'bg-blue-gradient text-accent-ink shadow-glow' : 'border border-edge-strong bg-surface text-fg-muted',
+            'relative z-10 mt-3 flex h-8 w-8 items-center justify-center rounded-full font-mono text-xs tabular',
+            first ? 'bg-fg text-accent-ink' : 'bg-surface-2 text-fg-muted',
           )}
         >
           {String(index + 1).padStart(2, '0')}
         </span>
         {!last && (
           <motion.span
-            className={cn('absolute -bottom-3 top-11 w-0.5 origin-top rounded-full', first ? 'bg-blue-gradient' : 'bg-edge')}
+            className={cn('absolute -bottom-3 top-11 w-0.5 origin-top rounded-full', first ? 'bg-fg' : 'bg-edge')}
             variants={{ hidden: { scaleY: 0 }, shown: { scaleY: 1 } }}
             transition={{ duration: 0.6, ease: EASE_OUT, delay: 0.2 + index * 0.15 }}
           />
@@ -52,7 +52,7 @@ export function RoadmapItem({ step, index, open, last, onToggle }: RoadmapItemPr
           aria-controls={panelId}
           className={cn(
             'flex w-full items-center gap-3 rounded-tile border px-4 py-3.5 text-left transition-[background-color,border-color,box-shadow] duration-200',
-            open ? 'border-edge-strong bg-surface shadow-card' : 'border-transparent hover:border-edge hover:bg-surface/70',
+            open ? 'border-transparent bg-surface-2' : 'border-transparent hover:bg-surface-2/60',
           )}
         >
           <span className="min-w-0 flex-1">
@@ -62,7 +62,7 @@ export function RoadmapItem({ step, index, open, last, onToggle }: RoadmapItemPr
               {dim.title}
             </span>
           </span>
-          <span className="shrink-0 rounded-md bg-blue-soft px-2 py-1 text-xs font-semibold text-blue tabular">+{step.impact} pts</span>
+          <span className="shrink-0 rounded-full bg-fund-soft px-2.5 py-1 text-xs font-semibold text-ink tabular">+{step.impact} pts</span>
           <ChevronDown
             aria-hidden
             className={cn('h-4 w-4 shrink-0 text-fg-muted transition-transform duration-200', open && 'rotate-180')}
@@ -83,7 +83,7 @@ export function RoadmapItem({ step, index, open, last, onToggle }: RoadmapItemPr
               <div className="px-4 pb-2 pt-3">
                 <p className="text-sm leading-relaxed text-fg-muted">{step.detail}</p>
                 <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-fg">
-                  <ArrowUpRight className="h-3.5 w-3.5 text-blue" strokeWidth={2} aria-hidden />
+                  <ArrowUpRight className="h-3.5 w-3.5 text-fg" strokeWidth={2} aria-hidden />
                   Could recover about {step.impact} points in {dim.title}
                 </p>
               </div>

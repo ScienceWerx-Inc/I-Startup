@@ -91,7 +91,7 @@ export function ReportView({
                   <span className="ml-2 font-mono text-sm text-readout-mut">/ {MAX_SCORE}</span>
                 </p>
                 <div className="max-w-sm pb-1">
-                  <p className="text-lg font-semibold text-[#8CC8FF]">{band.label}</p>
+                  <p className="text-lg font-semibold text-readout-accent">{band.label}</p>
                   <p className="mt-0.5 text-[13px] leading-relaxed text-readout-ink/75">{band.description}</p>
                 </div>
               </div>

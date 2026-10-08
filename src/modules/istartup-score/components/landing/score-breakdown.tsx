@@ -18,11 +18,11 @@ export function ScoreBreakdown() {
   const [active, setActive] = useState<CategoryKey | null>(null);
 
   return (
-    <section id="framework" className="section-y scroll-mt-20">
+    <section id="framework" className="section-y scroll-mt-24">
       <div className={container}>
         <Reveal className="max-w-2xl">
           <p className="kicker">Framework</p>
-          <h2 className="display-lg mt-4 text-fg">
+          <h2 className="display-lg mt-6 text-fg">
             Five weighted <br className="hidden sm:block" />
             dimensions.
           </h2>
@@ -33,7 +33,7 @@ export function ScoreBreakdown() {
         </Reveal>
 
         <div className={cn('mt-14 grid items-center gap-12 lg:grid-cols-[1fr_1.05fr] lg:gap-16')}>
-          <Reveal className="mx-auto w-full max-w-[460px]">
+          <Reveal className="mx-auto w-full max-w-[520px] rounded-panel bg-surface p-6 sm:p-10">
             <CircularScore dimensions={DIMENSIONS} active={active} onActive={setActive} />
           </Reveal>
           <ul className="grid gap-3">

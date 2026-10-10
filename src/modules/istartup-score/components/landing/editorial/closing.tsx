@@ -112,10 +112,10 @@ export function Closing() {
             <Mark inverse />
           </Link>
           <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2">
-            <Link href="/interview" className="transition-colors hover:text-paper">
-              Take the assessment
+            <Link href="/start" className="transition-colors hover:text-paper">
+              Submit an idea
             </Link>
-            <Link href="/login" className="transition-colors hover:text-paper">
+            <Link href="/sign-in" className="transition-colors hover:text-paper">
               Log in
             </Link>
           </nav>

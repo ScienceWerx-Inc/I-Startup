@@ -54,9 +54,13 @@ export function isAdminConfigured(): boolean {
   return Boolean(process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD);
 }
 
-export async function signSession(username: string, secret: string): Promise<string> {
+export async function signSession(
+  username: string,
+  secret: string,
+  maxAgeS: number = SESSION_MAX_AGE_S,
+): Promise<string> {
   const payload = b64urlEncode(
-    new TextEncoder().encode(`${username}:${Date.now() + SESSION_MAX_AGE_S * 1000}`),
+    new TextEncoder().encode(`${username}:${Date.now() + maxAgeS * 1000}`),
   );
   const sig = b64urlEncode(await hmac(secret, payload));
   return `${payload}.${sig}`;

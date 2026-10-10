@@ -1,13 +1,14 @@
 import { cookies } from 'next/headers';
 import { sql } from '@vercel/postgres';
 import { ADMIN_COOKIE, adminSecret, verifySession } from '@/lib/admin-auth';
-import { ensureReportsTable, isDatabaseConfigured } from '@/lib/db';
+import { sessionUserId } from '@/lib/account';
+import { ensureAuthTables, isDatabaseConfigured } from '@/lib/db';
 import type { ReportRow } from '@/lib/reports';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** GET /api/reports/:id — fetches one archived report. */
+/** GET /api/reports/:id — fetches one archived report (admin, or the founder who owns it). */
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -19,18 +20,24 @@ export async function GET(
     );
   }
 
+  const store = await cookies();
+  const admin = await verifySession(store.get(ADMIN_COOKIE)?.value, adminSecret());
+  const userId = admin ? null : await sessionUserId();
+  if (!admin && !userId) return Response.json({ error: 'Unauthorized.' }, { status: 401 });
+
   const { id } = await params;
   if (!id) return Response.json({ error: 'Missing id.' }, { status: 400 });
 
   try {
-    await ensureReportsTable();
-    const { rows } = await sql<ReportRow>`
-      SELECT id, app_id, startup_name, profile, company_info, answers, scores, final_score, band, country, region, city, created_at
+    await ensureAuthTables();
+    const { rows } = await sql<ReportRow & { user_id: string | null }>`
+      SELECT id, user_id, app_id, startup_name, profile, company_info, answers, scores, final_score, band, country, region, city, created_at
       FROM istartup_reports
       WHERE id = ${id}::uuid
       LIMIT 1;
     `;
-    if (rows.length === 0) {
+    // Someone else's report reads as missing, not forbidden.
+    if (rows.length === 0 || (!admin && rows[0].user_id !== userId)) {
       return Response.json({ error: 'Report not found.' }, { status: 404 });
     }
     return Response.json({ report: rows[0] });

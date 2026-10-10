@@ -1,22 +1,19 @@
 'use client';
 
-import React, { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import React, { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, LogIn, Shield, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/use-auth";
-import { useUserRole } from "@/hooks/use-user-role";
-import { getApplicationById } from "@/lib/data";
+import { useAccount, type Account, type AccountUser } from "@/hooks/use-account";
 
-import type { StartupProfile } from "../assessment/bank";
-import type { IStartupReport } from "../assessment/scoring";
-import { Eyebrow, Panel } from "../components/chrome";
+import { assessmentDraftKey } from "../assessment/draft-key";
+import { priorityActions, type IStartupReport } from "../assessment/scoring";
+import type { ReportScreenProps } from "../components/assessment-shell";
 import { Nav } from "../components/landing/editorial/nav";
-
-type ApplicationData = any;
+import { CourseOffer, UnlockCard } from "../components/paywall";
+import { ReportView } from "../components/report-view";
+import { profileFromOnboarding } from "../onboarding/fields";
 
 // Client-only: the shell restores a saved draft from localStorage on its first render.
 const AssessmentShell = dynamic(
@@ -33,94 +30,123 @@ function Loading({ label }: { label: string }) {
     );
 }
 
-function IstartupInterviewPageComponent() {
-    const [appId, setAppId] = useState("");
-    const [isLoading, setIsLoading] = useState(true);
-    const [verificationError, setVerificationError] = useState<string | null>(null);
-    const [showVerification, setShowVerification] = useState(true);
-    const [verifiedApplication, setVerifiedApplication] = useState<ApplicationData | null>(null);
-    const [saveState, setSaveState] = useState<"idle" | "saved" | "failed">("idle");
+type Notice = { tone: "good" | "risk"; text: string } | null;
 
+interface Gate {
+    account: Account;
+    user: AccountUser;
+    buying: "report" | "course" | null;
+    checkout: (product: "report" | "course") => void;
+}
+
+const GateContext = createContext<Gate | null>(null);
+
+/** The report as the shell shows it: score always, analysis behind the paywall, course offer below. */
+function GatedReport({ report, onEdit, onRestart }: ReportScreenProps) {
+    const gate = useContext(GateContext);
+    if (!gate) return null;
+    const { account, user, buying, checkout } = gate;
+    const testMode = account.payments === "mock";
+    const actionCount = priorityActions(report).length;
+    return (
+        <ReportView
+            report={report}
+            onEdit={onEdit}
+            onRestart={onRestart}
+            locked={!account.access.report}
+            lockOverlay={
+                <UnlockCard
+                    price={account.prices.report}
+                    strengths={report.strengths.length}
+                    gaps={report.gaps.length}
+                    actions={actionCount}
+                    busy={buying === "report"}
+                    testMode={testMode}
+                    onUnlock={() => checkout("report")}
+                />
+            }
+            extra={
+                <CourseOffer
+                    price={account.prices.course}
+                    owned={account.access.course}
+                    email={user.email}
+                    gapCount={Math.max(report.gaps.length, actionCount)}
+                    busy={buying === "course"}
+                    testMode={testMode}
+                    onEnroll={() => checkout("course")}
+                />
+            }
+        />
+    );
+}
+
+/**
+ * The assessment for a signed-in founder (proxy.ts sends everyone else to onboarding).
+ * The profile comes pre-filled from onboarding; the finished report shows the score and
+ * keeps the analysis locked until the founder buys the full report. Checkout returns here
+ * with `?checkout=success|cancelled`.
+ */
+function IstartupInterviewPageComponent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { user, isLoading: authLoading } = useAuth();
-    const { isAdmin, isLoading: roleLoading } = useUserRole();
+    const { account, user, isLoading, setAccount } = useAccount();
 
-    const appIdFromUrl = searchParams.get('appId');
-    const errorFromUrl = searchParams.get('error');
+    const [reportId, setReportId] = useState<string | null>(null);
+    const [saveState, setSaveState] = useState<"idle" | "saved" | "failed">("idle");
+    const [buying, setBuying] = useState<"report" | "course" | null>(null);
+    const [notice, setNotice] = useState<Notice>(() =>
+        searchParams.get("checkout") === "cancelled"
+            ? { tone: "risk", text: "Checkout was cancelled. Nothing was charged." }
+            : null,
+    );
 
-    const hasVerified = React.useRef(false);
+    const appId = searchParams.get("appId");
 
     useEffect(() => {
-        if (authLoading || roleLoading) return;
+        if (!isLoading && !user) router.replace("/start");
+    }, [isLoading, user, router]);
 
-        if (isAdmin) {
-            if (!hasVerified.current) {
-                hasVerified.current = true;
-                setVerifiedApplication({ id: 'ADMIN_BYPASS' } as any);
-                setShowVerification(false);
-                setIsLoading(false);
-            }
+    // Back from checkout: confirm the payment (Stripe) and refresh access, then tidy the URL.
+    const handledCheckout = useRef(false);
+    useEffect(() => {
+        const outcome = searchParams.get("checkout");
+        if (!outcome || !user || handledCheckout.current) return;
+        handledCheckout.current = true;
+        if (outcome === "cancelled") {
+            router.replace("/interview");
             return;
         }
-
-        if (user && appIdFromUrl) {
-            if (hasVerified.current) return;
-            hasVerified.current = true;
-
-            const verifyAppId = async () => {
-                setIsLoading(true);
-                setVerificationError(null);
-                const appData = await getApplicationById(appIdFromUrl);
-
-                if (appData) {
-                    setVerifiedApplication(appData);
-                    setShowVerification(false);
-                } else {
-                    setVerificationError("The Application ID provided is invalid or does not belong to your account. Please try again.");
-                    setShowVerification(true);
-                }
-                setIsLoading(false);
-            };
-            verifyAppId();
-        } else {
-            setShowVerification(false);
-            setIsLoading(false);
-        }
-    }, [user?.uid, authLoading, isAdmin, roleLoading, appIdFromUrl, errorFromUrl]);
-
-    const handleProceedToLogin = () => {
-        if (appId) {
-            router.push(`/login?next=/pnpl/apply/istartup-interview?appId=${appId}`);
-        }
-    };
-
-    const isLinked = !!verifiedApplication?.id && verifiedApplication.id !== 'ADMIN_BYPASS';
-    const companyOwner = verifiedApplication?.owners?.find((o: any) => o.ownerType === 'company' || o.ownerType === 'institution');
+        const sessionId = searchParams.get("session_id");
+        (async () => {
+            try {
+                const res = await fetch(`/api/checkout/verify${sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ""}`);
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+                setAccount((a) => (a ? { ...a, access: data.access } : a));
+                setNotice({ tone: "good", text: "Payment received, thank you. Your purchase is unlocked." });
+            } catch {
+                setNotice({ tone: "risk", text: "We couldn't confirm your payment yet. Refresh in a moment, or contact support if it persists." });
+            } finally {
+                router.replace("/interview");
+            }
+        })();
+    }, [searchParams, user, router, setAccount]);
 
     // Memoised: the shell derives its blank profile from this object's identity.
-    const initialProfile = useMemo<Partial<StartupProfile>>(() => ({
-        name: companyOwner?.companyName || companyOwner?.institutionName || verifiedApplication?.title || "",
-        description: verifiedApplication?.abstract || verifiedApplication?.inventionDescription || "",
-    }), [companyOwner, verifiedApplication]);
+    const onboarding = user?.onboarding;
+    const initialProfile = useMemo(() => profileFromOnboarding(onboarding), [onboarding]);
 
-    /** Archives the report in Vercel Postgres via /api/reports. Works for linked and anonymous assessments. */
+    /** Archives the report in Vercel Postgres via /api/reports, linked to the signed-in founder. */
     const saveReport = useCallback(async (report: IStartupReport) => {
         try {
             const res = await fetch('/api/reports', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    appId: verifiedApplication?.id ?? null,
+                    appId,
                     startupName: report.profile.name,
-                    profile: report.profile,
-                    companyInfo: companyOwner ? {
-                        name: companyOwner.companyName || companyOwner.institutionName,
-                        type: companyOwner.companyType,
-                        incorporationState: companyOwner.stateOfIncorporation,
-                        incorporationYear: companyOwner.yearOfIncorporation,
-                        officerName: companyOwner.officerName,
-                    } : null,
+                    profile: { ...report.profile, onboarding },
+                    companyInfo: null,
                     answers: report.answers,
                     scores: report.categories.map((c) => ({ category: c.title, score: c.percent })),
                     finalScore: report.finalScore,
@@ -128,79 +154,70 @@ function IstartupInterviewPageComponent() {
                 }),
             });
             if (!res.ok) throw new Error(`Save failed: ${res.status}`);
+            const data = await res.json();
+            setReportId(data.id ?? null);
             setSaveState("saved");
         } catch (error) {
             console.error("Failed to save report:", error);
             setSaveState("failed");
         }
-    }, [verifiedApplication, companyOwner]);
+    }, [appId, onboarding]);
 
-    const headerRight = isLinked ? (
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-good/30 bg-good-soft px-2.5 py-1 font-mono text-[11px] font-medium text-good">
-            <ShieldCheck className="h-3.5 w-3.5" /> {verifiedApplication.id}
-        </span>
-    ) : null;
+    const checkout = useCallback(async (product: "report" | "course") => {
+        setBuying(product);
+        setNotice(null);
+        try {
+            const res = await fetch("/api/checkout", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ product, reportId }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.url) throw new Error(data.error ?? "Could not start checkout.");
+            window.location.href = data.url;
+        } catch (err) {
+            setNotice({ tone: "risk", text: err instanceof Error ? err.message : "Could not start checkout." });
+            setBuying(null);
+        }
+    }, [reportId]);
+
+    const gate = useMemo<Gate | null>(
+        () => (account && user ? { account, user, buying, checkout } : null),
+        [account, user, buying, checkout],
+    );
 
     let body: React.ReactNode;
-    if (isLoading) {
-        body = <Loading label="Verifying your details…" />;
-    } else if (showVerification) {
-        body = (
-            <div className="mx-auto w-full max-w-lg px-4 py-16 sm:px-6">
-                <Panel>
-                    <Eyebrow>iSTARTUP Score</Eyebrow>
-                    <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Link your application</h1>
-                    <p className="mt-1.5 text-sm leading-relaxed text-mut">
-                        Enter your Application ID and log in to continue to the iSTARTUP Score assessment.
-                    </p>
-
-                    {verificationError ? (
-                        <p className="mt-5 flex items-start gap-2.5 rounded-lg border border-risk/30 bg-risk-soft p-3.5 text-sm text-risk">
-                            <Shield className="mt-0.5 h-4 w-4 shrink-0" />
-                            {verificationError}
-                        </p>
-                    ) : null}
-
-                    <label className="mt-6 block">
-                        <span className="mb-1.5 block text-sm font-medium text-ink">Application ID</span>
-                        <input
-                            placeholder="e.g. PN-001"
-                            value={appId}
-                            onChange={(e) => setAppId(e.target.value)}
-                            className="w-full rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 text-[15px] text-ink placeholder:text-mut/70 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
-                        />
-                    </label>
-                    <p className="mt-2 text-xs text-mut">
-                        Don&apos;t have one?{" "}
-                        <Link href="/pnpl/apply" className="font-medium text-brand hover:underline">
-                            Start a PNPL application
-                        </Link>
-                        .
-                    </p>
-                    <Button className="mt-6 w-full" size="lg" onClick={handleProceedToLogin} disabled={!appId}>
-                        <LogIn className="h-4 w-4" /> Proceed to login
-                    </Button>
-                </Panel>
-            </div>
-        );
+    if (isLoading || !user) {
+        body = <Loading label="Loading your account…" />;
     } else {
         body = (
             <>
-                {saveState !== "idle" ? (
-                    <p className={`no-print mx-auto mt-4 w-full max-w-5xl px-4 text-xs sm:px-6 ${saveState === "saved" ? "text-good" : "text-risk"}`}>
-                        {saveState === "saved"
-                            ? "Report archived with your application."
-                            : "The report could not be archived with your application. Download the PDF to keep a copy."}
+                {notice ? (
+                    <p className={`no-print mx-auto mt-4 flex w-full max-w-5xl items-center gap-2 px-4 text-sm sm:px-6 ${notice.tone === "good" ? "text-good" : "text-risk"}`}>
+                        {notice.tone === "good" ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                        {notice.text}
                     </p>
                 ) : null}
-                <AssessmentShell initialProfile={initialProfile} onComplete={saveReport} />
+                {saveState === "failed" ? (
+                    <p className="no-print mx-auto mt-4 w-full max-w-5xl px-4 text-xs text-risk sm:px-6">
+                        The report could not be saved to your account. Your answers are kept on this device; try again by editing and resubmitting.
+                    </p>
+                ) : null}
+                <GateContext.Provider value={gate}>
+                    <AssessmentShell
+                        initialProfile={initialProfile}
+                        onComplete={saveReport}
+                        storageKey={assessmentDraftKey(user.id)}
+                        ReportScreen={GatedReport}
+                    />
+                </GateContext.Provider>
             </>
         );
     }
 
     return (
         <div className="min-h-screen bg-paper">
-            <Nav variant="page" right={headerRight} />
+            <Nav variant="page" />
             {body}
         </div>
     );

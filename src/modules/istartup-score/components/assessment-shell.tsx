@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, Clock, ListChecks, RotateCcw } from 'lucide-react';
 
@@ -16,6 +16,7 @@ import {
   type CategoryKey,
   type StartupProfile,
 } from '../assessment/bank';
+import { assessmentDraftKey } from '../assessment/draft-key';
 import { computeReport, isComplete, type Answers, type IStartupReport } from '../assessment/scoring';
 import { Chip, Eyebrow, Panel } from './chrome';
 import { ReportView } from './report-view';
@@ -44,13 +45,12 @@ interface Draft {
   report: IStartupReport | null;
 }
 
-const STORAGE_KEY = 'istartup-assessment-v1';
 const TRANSITION = { duration: 0.18, ease: 'easeOut' as const };
 const AUTO_ADVANCE_MS = 260;
 
-function readDraft(): Draft | null {
+function readDraft(key: string): Draft | null {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Draft;
     return parsed?.v === 1 ? parsed : null;
@@ -59,10 +59,10 @@ function readDraft(): Draft | null {
   }
 }
 
-function writeDraft(draft: Draft | null) {
+function writeDraft(key: string, draft: Draft | null) {
   try {
-    if (draft) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
-    else window.localStorage.removeItem(STORAGE_KEY);
+    if (draft) window.localStorage.setItem(key, JSON.stringify(draft));
+    else window.localStorage.removeItem(key);
   } catch {
     // Storage blocked or full — resuming is a convenience, so carry on without it.
   }
@@ -73,9 +73,28 @@ export interface AssessmentShellProps {
   initialProfile?: Partial<StartupProfile>;
   /** Called once when a report is generated — e.g. to archive it. */
   onComplete?: (report: IStartupReport) => void;
+  /** localStorage key for the draft; scope it per user (see `assessmentDraftKey`). */
+  storageKey?: string;
+  /** Replaces the default report screen, e.g. to gate it behind a paywall. */
+  ReportScreen?: ComponentType<ReportScreenProps>;
 }
 
-export function AssessmentShell({ initialProfile, onComplete }: AssessmentShellProps) {
+export interface ReportScreenProps {
+  report: IStartupReport;
+  onEdit: () => void;
+  onRestart: () => void;
+}
+
+function profileComplete(p: StartupProfile): boolean {
+  return Boolean(p.name.trim() && p.description.trim()) && PROFILE_FIELDS.every((f) => p[f.key]);
+}
+
+export function AssessmentShell({
+  initialProfile,
+  onComplete,
+  storageKey = assessmentDraftKey(),
+  ReportScreen = ReportView,
+}: AssessmentShellProps) {
   const blankProfile = useMemo<StartupProfile>(
     () => ({ name: initialProfile?.name ?? '', description: initialProfile?.description ?? '', ...initialProfile }),
     [initialProfile],
@@ -83,7 +102,7 @@ export function AssessmentShell({ initialProfile, onComplete }: AssessmentShellP
 
   // Client-only component (see interview.tsx), so storage can be read during the first
   // render rather than in an effect — no flash of the intro before a saved report appears.
-  const [boot] = useState<Draft | null>(() => (typeof window === 'undefined' ? null : readDraft()));
+  const [boot] = useState<Draft | null>(() => (typeof window === 'undefined' ? null : readDraft(storageKey)));
   const bootReport = boot?.report ?? null;
 
   const [step, setStep] = useState<Step>(bootReport ? 'report' : 'intro');
@@ -102,8 +121,8 @@ export function AssessmentShell({ initialProfile, onComplete }: AssessmentShellP
 
   useEffect(() => {
     if (step === 'intro' && !report) return;
-    writeDraft({ v: 1, step, index, profile, answers, seen, report });
-  }, [step, index, profile, answers, seen, report]);
+    writeDraft(storageKey, { v: 1, step, index, profile, answers, seen, report });
+  }, [storageKey, step, index, profile, answers, seen, report]);
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
@@ -193,7 +212,7 @@ export function AssessmentShell({ initialProfile, onComplete }: AssessmentShellP
 
   const restart = () => {
     clearAdvance();
-    writeDraft(null);
+    writeDraft(storageKey, null);
     setProfile(blankProfile);
     setAnswers({});
     setSeen([]);
@@ -215,7 +234,7 @@ export function AssessmentShell({ initialProfile, onComplete }: AssessmentShellP
 
   if (step === 'report' && report) {
     return (
-      <ReportView
+      <ReportScreen
         report={report}
         onEdit={() => {
           setReport(null);
@@ -257,7 +276,9 @@ export function AssessmentShell({ initialProfile, onComplete }: AssessmentShellP
               resumable={resumable}
               onBegin={() => {
                 setResumable(null);
-                setStep('profile');
+                // Onboarding usually fills the whole profile; then go straight to the questions.
+                if (profileComplete(profile)) openQuestion(0);
+                else setStep('profile');
               }}
               onResume={resume}
               onDiscard={restart}

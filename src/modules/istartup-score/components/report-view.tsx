@@ -1,6 +1,7 @@
 'use client';
 
 import { format } from 'date-fns';
+import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowUpRight, Download, PencilLine, RotateCcw, TrendingDown, TrendingUp } from 'lucide-react';
 
@@ -24,6 +25,9 @@ import { Eyebrow, Panel } from './chrome';
  * every number comes from `computeReport`, so what is shown can never disagree with what
  * was scored. Layout: a dark readout hero, then a restrained paper report body that
  * prints cleanly to PDF.
+ *
+ * `locked`: only the hero (the score) is readable. The analysis below renders blurred and
+ * inert under `lockOverlay`, and the overview, appendix and PDF export are withheld.
  */
 
 const LEVEL_STYLE: Record<Level, string> = {
@@ -44,15 +48,119 @@ export function ReportView({
   report,
   onEdit,
   onRestart,
+  locked = false,
+  lockOverlay,
+  extra,
 }: {
   report: IStartupReport;
   onEdit: () => void;
   onRestart: () => void;
+  locked?: boolean;
+  lockOverlay?: ReactNode;
+  /** Rendered after the report, e.g. the course offer. */
+  extra?: ReactNode;
 }) {
   const { profile, finalScore, band, categories, strengths, gaps } = report;
   const actions = priorityActions(report);
   const generated = format(new Date(report.generatedAt), 'MMMM d, yyyy');
   const scorePct = (finalScore / MAX_SCORE) * 100;
+
+  const analysis = (
+    <>
+      {/* ── Dimension breakdown ── */}
+      <Panel className="avoid-break">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-lg font-semibold text-ink">Score by dimension</h2>
+          <p className="font-mono text-[11px] text-mut">Percent of available points · weight in final score</p>
+        </div>
+        <div className="mt-5 space-y-4">
+          {categories.map((c) => {
+            const section = sectionOf(c.key);
+            return (
+              <div key={c.key} className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1.5 sm:grid-cols-[180px_1fr_150px]">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-ink">
+                    <span className="mr-1.5 font-mono text-xs text-mut">{String(section.ordinal).padStart(2, '0')}</span>
+                    {c.title}
+                  </p>
+                  <p className="font-mono text-[11px] text-mut">{Math.round(c.weight * 100)}% weight · {c.points} pts</p>
+                </div>
+                <div className="order-3 col-span-2 sm:order-none sm:col-span-1">
+                  <div
+                    className="relative h-2.5 rounded-[4px] bg-line"
+                    role="meter"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={c.percent}
+                    aria-label={`${c.title} ${c.percent}%`}
+                    title={`${c.title}: ${c.percent}% of available points`}
+                  >
+                    <div className="h-full rounded-[4px] bg-brand" style={{ width: `${c.percent}%` }} />
+                    {/* 60% marks "solid" — the line between a dimension that holds and one that needs work. */}
+                    <div className="absolute inset-y-[-3px] left-[60%] w-px bg-line-strong" aria-hidden />
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-2.5">
+                  <span className="font-mono text-sm font-semibold text-ink tabular">{c.percent}%</span>
+                  <span className={cn('w-[86px] rounded-full px-2 py-0.5 text-center text-[11px] font-semibold', LEVEL_STYLE[c.level])}>
+                    {LEVEL_LABEL[c.level]}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Panel>
+
+      {/* ── Strengths & gaps ── */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <FindingList
+          title="Key strengths"
+          empty="No answers reached 4 or 5 yet — the priority actions below are where strengths will come from."
+          findings={strengths}
+          tone="good"
+          textOf={(f) => f.question.strength}
+        />
+        <FindingList
+          title="Critical gaps"
+          empty="No answers of 1 or 2 — there are no critical gaps. See the priority actions for the next level."
+          findings={gaps}
+          tone="risk"
+          textOf={(f) => f.question.gap}
+        />
+      </div>
+
+      {/* ── Priority actions ── */}
+      {actions.length > 0 ? (
+        <Panel className="avoid-break">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-lg font-semibold text-ink">Priority actions</h2>
+            <p className="font-mono text-[11px] text-mut">Ranked by points recoverable</p>
+          </div>
+          <ol className="mt-4 divide-y divide-line">
+            {actions.map((f, i) => (
+              <li key={f.question.id} className="flex gap-4 py-3.5 first:pt-1 last:pb-0">
+                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink font-mono text-xs font-semibold text-white print-exact">
+                  {i + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-ink">
+                    {f.question.title}
+                    <span className="ml-2 font-mono text-[11px] font-normal text-mut">{sectionOf(f.question.category).title}</span>
+                  </p>
+                  <p className="mt-1 text-sm leading-relaxed text-ink/85">{f.question.action}</p>
+                </div>
+                <span className="mt-0.5 inline-flex shrink-0 items-center gap-0.5 self-start font-mono text-xs font-semibold text-good tabular">
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                  up to {Math.round(recoverablePoints(f.question, f.value))} pts
+                </span>
+              </li>
+            ))}
+          </ol>
+        </Panel>
+      ) : null}
+    </>
+  );
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 pb-24 pt-8 sm:px-6 sm:pt-10">
@@ -65,9 +173,11 @@ export function ReportView({
           <Button variant="ghost" size="sm" onClick={onRestart}>
             <RotateCcw className="h-3.5 w-3.5" /> Start a new assessment
           </Button>
-          <Button size="sm" onClick={() => window.print()}>
-            <Download className="h-3.5 w-3.5" /> Download PDF
-          </Button>
+          {locked ? null : (
+            <Button size="sm" onClick={() => window.print()}>
+              <Download className="h-3.5 w-3.5" /> Download PDF
+            </Button>
+          )}
         </div>
       </div>
 
@@ -140,141 +250,66 @@ export function ReportView({
           </div>
         </section>
 
-        {/* ── Dimension breakdown ── */}
-        <Panel className="avoid-break">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-lg font-semibold text-ink">Score by dimension</h2>
-            <p className="font-mono text-[11px] text-mut">Percent of available points · weight in final score</p>
-          </div>
-          <div className="mt-5 space-y-4">
-            {categories.map((c) => {
-              const section = sectionOf(c.key);
-              return (
-                <div key={c.key} className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1.5 sm:grid-cols-[180px_1fr_150px]">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-ink">
-                      <span className="mr-1.5 font-mono text-xs text-mut">{String(section.ordinal).padStart(2, '0')}</span>
-                      {c.title}
-                    </p>
-                    <p className="font-mono text-[11px] text-mut">{Math.round(c.weight * 100)}% weight · {c.points} pts</p>
-                  </div>
-                  <div className="order-3 col-span-2 sm:order-none sm:col-span-1">
-                    <div
-                      className="relative h-2.5 rounded-[4px] bg-line"
-                      role="meter"
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={c.percent}
-                      aria-label={`${c.title} ${c.percent}%`}
-                      title={`${c.title}: ${c.percent}% of available points`}
-                    >
-                      <div className="h-full rounded-[4px] bg-brand" style={{ width: `${c.percent}%` }} />
-                      {/* 60% marks "solid" — the line between a dimension that holds and one that needs work. */}
-                      <div className="absolute inset-y-[-3px] left-[60%] w-px bg-line-strong" aria-hidden />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-end gap-2.5">
-                    <span className="font-mono text-sm font-semibold text-ink tabular">{c.percent}%</span>
-                    <span className={cn('w-[86px] rounded-full px-2 py-0.5 text-center text-[11px] font-semibold', LEVEL_STYLE[c.level])}>
-                      {LEVEL_LABEL[c.level]}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Panel>
-
-        {/* ── Strengths & gaps ── */}
-        <div className="grid gap-6 md:grid-cols-2">
-          <FindingList
-            title="Key strengths"
-            empty="No answers reached 4 or 5 yet — the priority actions below are where strengths will come from."
-            findings={strengths}
-            tone="good"
-            textOf={(f) => f.question.strength}
-          />
-          <FindingList
-            title="Critical gaps"
-            empty="No answers of 1 or 2 — there are no critical gaps. See the priority actions for the next level."
-            findings={gaps}
-            tone="risk"
-            textOf={(f) => f.question.gap}
-          />
-        </div>
-
-        {/* ── Priority actions ── */}
-        {actions.length > 0 ? (
-          <Panel className="avoid-break">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-lg font-semibold text-ink">Priority actions</h2>
-              <p className="font-mono text-[11px] text-mut">Ranked by points recoverable</p>
+        {locked ? (
+          <div className="no-print relative">
+            <div
+              inert
+              aria-hidden
+              className="pointer-events-none max-h-[820px] select-none space-y-6 overflow-hidden blur-[7px] [mask-image:linear-gradient(to_bottom,black_45%,transparent)]"
+            >
+              {analysis}
             </div>
-            <ol className="mt-4 divide-y divide-line">
-              {actions.map((f, i) => (
-                <li key={f.question.id} className="flex gap-4 py-3.5 first:pt-1 last:pb-0">
-                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink font-mono text-xs font-semibold text-white print-exact">
-                    {i + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-ink">
-                      {f.question.title}
-                      <span className="ml-2 font-mono text-[11px] font-normal text-mut">{sectionOf(f.question.category).title}</span>
-                    </p>
-                    <p className="mt-1 text-sm leading-relaxed text-ink/85">{f.question.action}</p>
-                  </div>
-                  <span className="mt-0.5 inline-flex shrink-0 items-center gap-0.5 self-start font-mono text-xs font-semibold text-good tabular">
-                    <ArrowUpRight className="h-3.5 w-3.5" />
-                    up to {Math.round(recoverablePoints(f.question, f.value))} pts
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </Panel>
-        ) : null}
-
-        {/* ── Overview ── */}
-        <Panel className="avoid-break">
-          <h2 className="text-lg font-semibold text-ink">Startup overview</h2>
-          <p className="mt-2 whitespace-pre-line text-[15px] leading-relaxed text-ink/85">{profile.description}</p>
-        </Panel>
-
-        {/* ── Appendix ── */}
-        <Panel>
-          <h2 className="text-lg font-semibold text-ink">Appendix · Responses</h2>
-          <p className="mt-1 text-sm text-mut">Every answer as given, by section.</p>
-          <div className="mt-5 space-y-6">
-            {SECTIONS.map((section) => (
-              <div key={section.key} className="avoid-break">
-                <Eyebrow className="mb-2">
-                  {String(section.ordinal).padStart(2, '0')} · {section.title}
-                </Eyebrow>
-                <table className="w-full text-left text-sm">
-                  <tbody className="divide-y divide-line border-y border-line">
-                    {questionsIn(section.key).map((q) => {
-                      const value = report.answers[q.id];
-                      return (
-                        <tr key={q.id} className="align-top">
-                          <td className="w-[34%] py-2.5 pr-4 font-medium text-ink">{q.title}</td>
-                          <td className="py-2.5 pr-4 text-mut">{q.options.find((o) => o.value === value)?.label}</td>
-                          <td className="w-10 py-2.5 text-right font-mono font-semibold text-ink tabular">{value}/5</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ))}
+            <div className="absolute inset-x-0 top-0 flex justify-center px-1 pt-8 sm:pt-14">{lockOverlay}</div>
           </div>
-        </Panel>
+        ) : (
+          <>
+            {analysis}
+            {/* ── Overview ── */}
+            <Panel className="avoid-break">
+              <h2 className="text-lg font-semibold text-ink">Startup overview</h2>
+              <p className="mt-2 whitespace-pre-line text-[15px] leading-relaxed text-ink/85">{profile.description}</p>
+            </Panel>
 
-        <p className="px-1 text-xs leading-relaxed text-mut">
-          <strong className="font-semibold text-ink">Methodology.</strong> {QUESTIONS.length} questions across five weighted
-          dimensions ({SECTIONS.map((s) => `${s.title} ${Math.round(s.weight * 100)}%`).join(', ')}). Each answer earns
-          one-fifth of its question’s points per level; a dimension’s score is points earned over points available, and the
-          final score is the weighted sum scaled to {MAX_SCORE}. Self-reported: the score reflects the answers given and is
-          best used alongside supporting evidence.
-        </p>
+            {/* ── Appendix ── */}
+            <Panel>
+              <h2 className="text-lg font-semibold text-ink">Appendix · Responses</h2>
+              <p className="mt-1 text-sm text-mut">Every answer as given, by section.</p>
+              <div className="mt-5 space-y-6">
+                {SECTIONS.map((section) => (
+                  <div key={section.key} className="avoid-break">
+                    <Eyebrow className="mb-2">
+                      {String(section.ordinal).padStart(2, '0')} · {section.title}
+                    </Eyebrow>
+                    <table className="w-full text-left text-sm">
+                      <tbody className="divide-y divide-line border-y border-line">
+                        {questionsIn(section.key).map((q) => {
+                          const value = report.answers[q.id];
+                          return (
+                            <tr key={q.id} className="align-top">
+                              <td className="w-[34%] py-2.5 pr-4 font-medium text-ink">{q.title}</td>
+                              <td className="py-2.5 pr-4 text-mut">{q.options.find((o) => o.value === value)?.label}</td>
+                              <td className="w-10 py-2.5 text-right font-mono font-semibold text-ink tabular">{value}/5</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+
+            <p className="px-1 text-xs leading-relaxed text-mut">
+              <strong className="font-semibold text-ink">Methodology.</strong> {QUESTIONS.length} questions across five weighted
+              dimensions ({SECTIONS.map((s) => `${s.title} ${Math.round(s.weight * 100)}%`).join(', ')}). Each answer earns
+              one-fifth of its question’s points per level; a dimension’s score is points earned over points available, and the
+              final score is the weighted sum scaled to {MAX_SCORE}. Self-reported: the score reflects the answers given and is
+              best used alongside supporting evidence.
+            </p>
+          </>
+        )}
+
+        {extra}
       </motion.div>
     </div>
   );

@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { motion, useScroll, useSpring, useTransform } from 'framer-motion';
 
+import { useAccount } from '@/hooks/use-account';
 import { cn } from '@/lib/utils';
 import { ASSESSMENT_HREF, EASE, Mark, wrap } from './shared';
 
@@ -28,6 +29,7 @@ const SECTION_IDS = JOURNEY.flatMap((j) => j.sections);
  */
 export function Nav({ variant = 'landing', right }: { variant?: 'landing' | 'page'; right?: ReactNode }) {
   const onLanding = variant === 'landing';
+  const { user, isLoading, signOut } = useAccount();
   const [scrolledY, setScrolled] = useState(false);
   const scrolled = scrolledY || !onLanding;
   const [active, setActive] = useState<string>('assess');
@@ -110,19 +112,39 @@ export function Nav({ variant = 'landing', right }: { variant?: 'landing' | 'pag
 
         <div className="flex items-center gap-5">
           {right}
-          <Link
-            href="/login"
-            className="hidden text-[14px] font-medium text-mut transition-colors hover:text-ink sm:block"
-          >
-            Log in
-          </Link>
+          {isLoading ? null : user ? (
+            <>
+              {onLanding && (
+                <Link href="/interview" className="hidden text-[14px] font-medium text-mut transition-colors hover:text-ink sm:block">
+                  My assessment
+                </Link>
+              )}
+              <span className="hidden max-w-[140px] truncate text-[14px] text-ink sm:block" title={user.email}>
+                {user.fullName.split(' ')[0] || user.email}
+              </span>
+              <button
+                type="button"
+                onClick={signOut}
+                className="text-[14px] font-medium text-mut transition-colors hover:text-ink"
+              >
+                Sign out
+              </button>
+            </>
+          ) : (
+            <Link
+              href="/sign-in"
+              className="hidden text-[14px] font-medium text-mut transition-colors hover:text-ink sm:block"
+            >
+              Log in
+            </Link>
+          )}
           {onLanding && (
             <Link
               id="nav-cta"
               href={ASSESSMENT_HREF}
               className="group inline-flex h-10 items-center gap-2 rounded-[5px] bg-ink px-4 text-[14px] font-medium text-paper transition-colors hover:bg-[#1a2a4d]"
             >
-              Get your score
+              Submit an idea
               <span aria-hidden className="transition-transform duration-300 group-hover:translate-x-0.5">
                 →
               </span>

@@ -1,5 +1,8 @@
+import { cookies } from 'next/headers';
 import { sql } from '@vercel/postgres';
-import { ensureReportsTable, isDatabaseConfigured } from '@/lib/db';
+import { sessionUserId } from '@/lib/account';
+import { ADMIN_COOKIE, adminSecret, verifySession } from '@/lib/admin-auth';
+import { ensureAuthTables, ensureReportsTable, isDatabaseConfigured } from '@/lib/db';
 import { GeoSchema, ReportPayloadSchema, type ReportRow } from '@/lib/reports';
 
 export const runtime = 'nodejs';
@@ -37,13 +40,16 @@ export async function POST(request: Request) {
     city: request.headers.get('x-vercel-ip-city'),
   });
 
+  const userId = await sessionUserId();
+
   try {
-    await ensureReportsTable();
+    await ensureAuthTables();
     const { rows } = await sql<ReportRow>`
       INSERT INTO istartup_reports
-        (app_id, startup_name, profile, company_info, answers, scores, final_score, band, country, region, city)
+        (user_id, app_id, startup_name, profile, company_info, answers, scores, final_score, band, country, region, city)
       VALUES
         (
+          ${userId}::uuid,
           ${p.appId ?? null},
           ${p.startupName},
           ${JSON.stringify(p.profile)}::jsonb,
@@ -65,8 +71,12 @@ export async function POST(request: Request) {
   }
 }
 
-/** GET /api/reports?appId=PN-001&limit=20 — lists reports, newest first. */
+/** GET /api/reports?appId=PN-001&limit=20 — admin-only list of reports, newest first. */
 export async function GET(request: Request) {
+  const store = await cookies();
+  const admin = await verifySession(store.get(ADMIN_COOKIE)?.value, adminSecret());
+  if (!admin) return Response.json({ error: 'Unauthorized.' }, { status: 401 });
+
   if (!isDatabaseConfigured()) {
     return Response.json(
       { error: 'Database not configured. Set POSTGRES_URL in Vercel Storage.' },

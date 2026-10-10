@@ -12,13 +12,14 @@ import { cn } from '@/lib/utils';
 export function Wordmark({ className }: { className?: string }) {
   return (
     <span className={cn('inline-flex items-center gap-2.5', className)}>
-      {/* A flat rendering of the app icon (app/icon.svg): the "i" and its upward surge. */}
+      {/* A flat rendering of the app icon (app/icon.svg): the score gauge. */}
       <svg viewBox="32 32 448 448" className="h-7 w-7 shrink-0" aria-hidden>
-        <rect x="32" y="32" width="448" height="448" rx="96" fill="var(--carbon)" />
-        <circle cx="210" cy="155" r="32" fill="var(--surface)" />
-        <path d="M182 230C182 215 238 215 238 230L238 350C238 365 182 365 182 350Z" fill="var(--tech)" />
-        <path d="M120 380C180 370 270 330 360 170C340 210 310 240 270 260C220 285 160 300 120 380Z" fill="var(--fund)" />
-        <path d="M360 170L375 225L340 210Z" fill="var(--surface)" />
+        <rect x="32" y="32" width="448" height="448" rx="104" fill="var(--ink)" />
+        <path d="M121 312A135 135 0 0 1 391 312" fill="none" stroke="#22364b" strokeWidth="38" strokeLinecap="round" />
+        <path d="M121 312A135 135 0 0 1 378.4 254.9" fill="none" stroke="var(--brand-bright)" strokeWidth="38" strokeLinecap="round" />
+        <line x1="256" y1="312" x2="311" y2="216.7" stroke="#fff" strokeWidth="15" strokeLinecap="round" />
+        <circle cx="256" cy="312" r="24" fill="#fff" />
+        <circle cx="256" cy="312" r="10" fill="var(--ink)" />
       </svg>
       <span className="text-[15px] font-semibold tracking-[-0.02em] text-current">
         iSTARTUP<span className="ml-1 font-normal opacity-70">Score</span>

@@ -19,7 +19,8 @@ export const EASE = [0.22, 1, 0.36, 1] as const;
 
 export const wrap = 'mx-auto w-full max-w-[1280px] ed-x';
 
-export const ASSESSMENT_HREF = '/interview';
+// Every CTA starts the "Submit an idea" onboarding, which is where accounts are created.
+export const ASSESSMENT_HREF = '/start';
 
 /** The point. `tone` carries meaning, so it is never decorative. */
 export function Point({
@@ -130,7 +131,7 @@ export function Reveal({
 
 /** Primary action. Solid, product-like; the arrow moves forward on hover. */
 export function PrimaryCta({
-  children = 'Get your iSTARTUP Score',
+  children = 'Submit an idea',
   inverse = false,
   className,
   id,

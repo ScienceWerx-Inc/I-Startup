@@ -71,3 +71,54 @@ export async function ensureReportsTable(): Promise<void> {
       ON istartup_reports (country, created_at DESC);
   `;
 }
+
+let authTablesReady: Promise<void> | null = null;
+
+/**
+ * Founder accounts, purchases, and the report → user link. Runs its DDL once per server
+ * instance (retried on failure). See `db/migrations/003_users_and_purchases.sql`.
+ */
+export function ensureAuthTables(): Promise<void> {
+  authTablesReady ??= (async () => {
+    await ensureReportsTable();
+    await sql`
+      CREATE TABLE IF NOT EXISTS istartup_users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        email TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        full_name TEXT NOT NULL DEFAULT '',
+        onboarding JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        last_login_at TIMESTAMPTZ NULL
+      );
+    `;
+    await sql`ALTER TABLE istartup_reports ADD COLUMN IF NOT EXISTS user_id UUID NULL;`;
+    await sql`
+      CREATE INDEX IF NOT EXISTS istartup_reports_user_id_idx
+        ON istartup_reports (user_id, created_at DESC);
+    `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS istartup_purchases (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES istartup_users(id) ON DELETE CASCADE,
+        report_id UUID NULL,
+        product TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        provider TEXT NOT NULL,
+        provider_ref TEXT NULL UNIQUE,
+        amount_cents INTEGER NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'usd',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        paid_at TIMESTAMPTZ NULL
+      );
+    `;
+    await sql`
+      CREATE INDEX IF NOT EXISTS istartup_purchases_user_idx
+        ON istartup_purchases (user_id, status);
+    `;
+  })().catch((error) => {
+    authTablesReady = null;
+    throw error;
+  });
+  return authTablesReady;
+}

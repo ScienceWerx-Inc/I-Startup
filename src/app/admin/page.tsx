@@ -20,14 +20,14 @@ export default async function AdminPage() {
           </span>
         }
       />
-      <div className="mx-auto w-full max-w-5xl px-4 pb-24 pt-8 sm:px-6 sm:pt-10">
+      <div className="mx-auto w-full max-w-6xl px-4 pb-24 pt-8 sm:px-6 sm:pt-10">
         <Eyebrow>Admin</Eyebrow>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">
-          Reports & database
+          Admin console
         </h1>
         <p className="mt-1 text-sm text-mut">
-          Signed in as <span className="font-mono">{user}</span>. Test Postgres and inspect
-          archived iSTARTUP reports.
+          Signed in as <span className="font-mono">{user}</span>. Founders, their onboarding answers,
+          reports, payments and system health.
         </p>
         <div className="mt-6">
           <AdminDashboard />

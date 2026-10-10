@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { sql } from '@vercel/postgres';
 import { sessionUserId } from '@/lib/account';
 import { ADMIN_COOKIE, adminSecret, verifySession } from '@/lib/admin-auth';
-import { ensureAuthTables, ensureReportsTable, isDatabaseConfigured } from '@/lib/db';
+import { ensureAuthTables, isDatabaseConfigured } from '@/lib/db';
 import { GeoSchema, ReportPayloadSchema, type ReportRow } from '@/lib/reports';
 
 export const runtime = 'nodejs';
@@ -88,23 +88,25 @@ export async function GET(request: Request) {
   const appId = searchParams.get('appId');
   const limit = Math.min(
     Math.max(Number.parseInt(searchParams.get('limit') ?? '20', 10) || 20, 1),
-    100,
+    1000,
   );
 
   try {
-    await ensureReportsTable();
+    await ensureAuthTables();
     const { rows } = appId
       ? await sql<ReportRow>`
-          SELECT id, app_id, startup_name, profile, company_info, answers, scores, final_score, band, country, region, city, created_at
-          FROM istartup_reports
-          WHERE app_id = ${appId}
-          ORDER BY created_at DESC
+          SELECT r.id, r.app_id, r.startup_name, r.final_score, r.band, r.country, r.region, r.city, r.created_at,
+                 r.user_id, u.email AS user_email, u.full_name AS user_name
+          FROM istartup_reports r LEFT JOIN istartup_users u ON u.id = r.user_id
+          WHERE r.app_id = ${appId}
+          ORDER BY r.created_at DESC
           LIMIT ${limit};
         `
       : await sql<ReportRow>`
-          SELECT id, app_id, startup_name, profile, company_info, answers, scores, final_score, band, country, region, city, created_at
-          FROM istartup_reports
-          ORDER BY created_at DESC
+          SELECT r.id, r.app_id, r.startup_name, r.final_score, r.band, r.country, r.region, r.city, r.created_at,
+                 r.user_id, u.email AS user_email, u.full_name AS user_name
+          FROM istartup_reports r LEFT JOIN istartup_users u ON u.id = r.user_id
+          ORDER BY r.created_at DESC
           LIMIT ${limit};
         `;
     return Response.json({ reports: rows });

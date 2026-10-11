@@ -179,6 +179,64 @@
   outline-offset: 3px;
 }
 
+/*
+ * Landing — "Startup intelligence in motion".
+ *
+ * Mostly white and mist, navy for weight and contrast blocks, and a small set of
+ * accents that each mean something: mint is progress and the selected score, funder
+ * blue is the funder journey and secondary data, amber is an area needing attention.
+ * On light surfaces mint, teal and the soft tints are fill-only and text uses the `-ink`
+ * variants; on navy, mint is also used for text (about 10:1).
+ */
+.theme-bi {
+  --ink: #0b1730; /* deep navy */
+  --midnight: #132746;
+  --paper: #ffffff;
+  --surface: #ffffff;
+  --mist: #eff3f8;
+  --mut: #526078; /* 6.6:1 on white, 5.9:1 on mist */
+  --line: #dce4ed;
+  --line-strong: #c3cfdc;
+
+  --mint: #70d6b0; /* fill-only */
+  --mint-soft: #e2f6ee;
+  --mint-ink: #17795a; /* text-safe mint, 5.4:1 on white */
+  --teal: #2aa79a; /* fill-only: the far end of the mint gradient */
+  --funder: #234b80;
+  --funder-soft: #e5ecf5;
+  --amber: #e3a63b; /* fill-only */
+  --amber-soft: #fbf0db;
+  --amber-ink: #8a5a00;
+
+  --on-dark: #ffffff;
+  --on-dark-muted: rgba(255, 255, 255, 0.7);
+  --on-dark-line: rgba(255, 255, 255, 0.12);
+
+  --r-btn: 10px;
+  --r-sm: 12px;
+  --r-md: 16px;
+
+  --bi-gutter: clamp(1rem, 0.4rem + 2.4vw, 2rem);
+  --bi-section: clamp(3.5rem, 2rem + 4vw, 5.5rem);
+
+  --bi-shadow-card: 0 1px 2px rgba(11, 23, 48, 0.05), 0 8px 24px -12px rgba(11, 23, 48, 0.14);
+  --bi-shadow-float: 0 2px 4px rgba(11, 23, 48, 0.04), 0 18px 40px -18px rgba(11, 23, 48, 0.28);
+
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+.theme-bi ::selection {
+  background: var(--mint-soft);
+  color: var(--ink);
+}
+
+.theme-bi :focus-visible {
+  outline: 2px solid var(--funder);
+  outline-offset: 3px;
+}
+
 @media (min-width: 1024px) {
   :root {
     --space-gutter: 2rem;
@@ -260,6 +318,15 @@
   --color-amber-soft: var(--amber-soft);
   --color-amber-ink: var(--amber-ink);
   --color-critical: var(--critical);
+
+  /* Landing (resolve inside .theme-bi). */
+  --color-midnight: var(--midnight);
+  --color-teal: var(--teal);
+  --color-funder: var(--funder);
+  --color-funder-soft: var(--funder-soft);
+  --color-on-dark-line: var(--on-dark-line);
+  --shadow-card: var(--bi-shadow-card);
+  --shadow-float: var(--bi-shadow-float);
 }
 
 @layer base {
@@ -395,6 +462,108 @@
     font-family: var(--font-grotesk), system-ui, sans-serif;
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.04em;
+  }
+
+  /* ── Landing type scale (Inter throughout) ── */
+  .bi-x {
+    padding-inline: var(--bi-gutter);
+  }
+
+  .bi-y {
+    padding-block: var(--bi-section);
+  }
+
+  /* Hero: 38px on phones, ~50px on tablets, 68px on desktop. */
+  .bi-h1 {
+    font-size: clamp(2.375rem, 1.5rem + 3.2vw, 4rem);
+    font-weight: 650;
+    line-height: 1.06;
+    letter-spacing: -0.035em;
+  }
+
+  /* Section headings: 30px on phones, up to 46px. */
+  .bi-h2 {
+    font-size: clamp(1.875rem, 1.35rem + 1.75vw, 2.875rem);
+    font-weight: 650;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+  }
+
+  /* Card and panel headings: 18–22px. */
+  .bi-h3 {
+    font-size: clamp(1.125rem, 1rem + 0.35vw, 1.375rem);
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.015em;
+  }
+
+  /* Size and rhythm only: the colour is set where it is used (text-mut or text-on-dark-muted). */
+  .bi-lead {
+    font-size: clamp(1.0625rem, 1rem + 0.2vw, 1.125rem);
+    line-height: 1.65;
+  }
+
+  .bi-eyebrow {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* Data labels in panels and charts. */
+  .bi-data {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.3;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Ambient loops: only when motion is welcome, so the reduced-motion reset never turns
+   an infinite loop into a flicker. */
+@media (prefers-reduced-motion: no-preference) {
+  .bi-orbit {
+    animation: bi-orbit var(--bi-orbit, 40s) linear infinite;
+    transform-box: view-box;
+  }
+
+  .bi-drift {
+    animation: bi-drift var(--bi-drift, 8s) ease-in-out infinite;
+  }
+
+  .bi-pulse {
+    animation: bi-pulse 4s ease-in-out infinite;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+}
+
+@keyframes bi-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bi-drift {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(var(--bi-drift-y, -4px));
+  }
+}
+
+@keyframes bi-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0;
+    transform: scale(2.4);
   }
 }
 

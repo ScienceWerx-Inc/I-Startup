@@ -3,7 +3,6 @@ import {
   BAND_THRESHOLDS,
   bandFor,
   computeReport,
-  LEVEL_LABEL,
   priorityActions,
   recoverablePoints,
   type Answers,
@@ -18,7 +17,7 @@ import {
  * example appears is labelled as illustrative.
  */
 
-export { MAX_SCORE, LEVEL_LABEL };
+export { MAX_SCORE };
 export type { CategoryKey, Level };
 
 export const QUESTION_COUNT = QUESTIONS.length;
@@ -86,15 +85,8 @@ export const SAMPLE_ACTIONS: Action[] = priorityActions(REPORT, 3).map((f) => ({
 
 export const FOCUS_ACTION = SAMPLE_ACTIONS[0];
 
-const byPercent = [...DIMENSIONS].sort((a, b) => b.percent - a.percent);
-export const STRONGEST = byPercent[0];
-export const WEAKEST = byPercent[byPercent.length - 1];
-
 /** The four readiness bands, lowest first, by their real thresholds. */
 export const BAND_LABELS = [0, ...BAND_THRESHOLDS.map((t) => t + 1)].map((score) => bandFor(score).label);
-
-/** The dimension carrying the most weight in the score. */
-export const HEAVIEST = [...SECTIONS].sort((a, b) => b.weight - a.weight)[0].title;
 
 /** Two more illustrative applicants for the funder view, scored the same way. */
 const answersFrom = (values: number[]): Answers =>
@@ -109,4 +101,4 @@ export const OTHER_APPLICANTS = [
 );
 
 /** Mint for strong and solid results, amber for anything needing attention. */
-export const toneFor = (level: Level) => (level === 'strong' || level === 'solid' ? 'mint' : 'amber');
+export const toneFor = (level: Level): 'mint' | 'amber' => (level === 'strong' || level === 'solid' ? 'mint' : 'amber');

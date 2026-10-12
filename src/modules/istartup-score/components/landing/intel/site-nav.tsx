@@ -11,11 +11,8 @@ import { Wordmark } from '../../chrome';
 import { ASSESSMENT_HREF, MY_ASSESSMENT_HREF, SIGN_IN_HREF, useTiming, wrap } from './primitives';
 
 export const NAV_LINKS = [
-  { label: 'Platform', href: '#platform' },
   { label: 'How It Works', href: '#how-it-works' },
-  { label: 'For Startups', href: '#startups' },
   { label: 'For Funders', href: '#funders' },
-  { label: 'Insights', href: '#insights' },
 ] as const;
 
 /**
@@ -78,7 +75,7 @@ export function SiteNav({ variant = 'landing', right }: { variant?: 'landing' | 
       )}
     >
       <div className={cn(wrap, 'flex h-16 items-center justify-between gap-6')}>
-        <Link href="/" aria-label="iSTARTUP Score home" className="rounded-md text-ink">
+        <Link href="/" aria-label="iStartup Score home" className="rounded-md text-ink">
           <Wordmark />
         </Link>
 
@@ -104,7 +101,7 @@ export function SiteNav({ variant = 'landing', right }: { variant?: 'landing' | 
           ) : user ? (
             <>
               {onLanding && (
-                <Link href={MY_ASSESSMENT_HREF} className="hidden h-10 items-center rounded-btn bg-ink px-4 text-[14px] font-semibold text-on-dark transition-colors duration-200 hover:bg-midnight sm:inline-flex">
+                <Link href={MY_ASSESSMENT_HREF} className="hidden h-10 items-center bi-btn-primary rounded-btn px-4 text-[14px] font-semibold sm:inline-flex">
                   My Assessment
                 </Link>
               )}
@@ -128,7 +125,7 @@ export function SiteNav({ variant = 'landing', right }: { variant?: 'landing' | 
                 Sign In
               </Link>
               {onLanding && (
-                <Link href={ASSESSMENT_HREF} className="hidden h-10 items-center rounded-btn bg-ink px-4 text-[14px] font-semibold text-on-dark transition-colors duration-200 hover:bg-midnight sm:inline-flex">
+                <Link href={ASSESSMENT_HREF} className="hidden h-10 items-center bi-btn-primary rounded-btn px-4 text-[14px] font-semibold sm:inline-flex">
                   Get Started
                 </Link>
               )}
@@ -187,7 +184,7 @@ export function SiteNav({ variant = 'landing', right }: { variant?: 'landing' | 
                         Sign Out
                       </button>
                       {onLanding && (
-                        <Link href={MY_ASSESSMENT_HREF} className="flex h-12 items-center justify-center rounded-btn bg-ink text-[15px] font-semibold text-on-dark">
+                        <Link href={MY_ASSESSMENT_HREF} className="flex h-12 items-center justify-center bi-btn-primary rounded-btn text-[15px] font-semibold">
                           My Assessment
                         </Link>
                       )}
@@ -198,7 +195,7 @@ export function SiteNav({ variant = 'landing', right }: { variant?: 'landing' | 
                         Sign In
                       </Link>
                       {onLanding && (
-                        <Link href={ASSESSMENT_HREF} className="flex h-12 items-center justify-center rounded-btn bg-ink text-[15px] font-semibold text-on-dark">
+                        <Link href={ASSESSMENT_HREF} className="flex h-12 items-center justify-center bi-btn-primary rounded-btn text-[15px] font-semibold">
                           Get Started
                         </Link>
                       )}

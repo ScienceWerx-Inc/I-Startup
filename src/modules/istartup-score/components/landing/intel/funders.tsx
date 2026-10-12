@@ -7,6 +7,7 @@ import { FileSearch, Layers, Scale } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DIMENSIONS, FOCUS_ACTION, MAX_SCORE, OTHER_APPLICANTS, QUESTION_COUNT, SAMPLE_BAND, SAMPLE_SCORE, toneFor } from './data';
 import {
+  Accent,
   ButtonLink,
   ConnectionPath,
   DataNode,
@@ -59,14 +60,18 @@ const PANEL_Y = r2(H * 0.06 + 64);
 
 export function Funders() {
   return (
-    <section id="funders" aria-labelledby="funders-title" className="bi-y relative scroll-mt-16 overflow-hidden bg-ink text-on-dark">
+    <section id="funders" aria-labelledby="funders-title" className="bi-y bi-canvas-dark relative scroll-mt-16 overflow-hidden bg-ink text-on-dark">
       <div className={cn(wrap, 'grid items-center gap-x-14 gap-y-12 lg:grid-cols-12')}>
         <div className="lg:col-span-5">
           <SectionHeading
             id="funders-title"
             dark
             eyebrow="For funders"
-            title="Evaluate opportunities with greater confidence."
+            title={
+              <>
+                Evaluate opportunities with <Accent dark>greater confidence.</Accent>
+              </>
+            }
             lead="Review structured startup assessment results to understand business readiness, identify potential gaps, and support your due diligence process."
           />
           <ul className="mt-8 grid gap-5">
@@ -182,9 +187,9 @@ function Network() {
                 y={app.y}
                 width={CARD.w}
                 height={CARD.h}
-                rx={12}
-                fill="var(--midnight)"
-                stroke={app.selected ? 'var(--mint)' : 'rgba(255,255,255,0.12)'}
+                rx={18}
+                fill="rgba(255,255,255,0.07)"
+                stroke={app.selected ? 'var(--mint)' : 'rgba(255,255,255,0.16)'}
                 strokeWidth={app.selected ? 1.5 : 1}
               />
               <text x={CARD.x + 12} y={app.y + 22} fontSize={12} fontWeight={600} fill="#fff">
@@ -249,7 +254,7 @@ function ReportPanel({ on }: { on: boolean }) {
   const t = useTiming();
   return (
     <motion.div
-      className="rounded-card border border-on-dark-line bg-midnight p-4 shadow-float sm:p-5"
+      className="bi-glass-dark rounded-card p-4 sm:p-5"
       initial={{ opacity: 0, x: 24 }}
       animate={on ? { opacity: 1, x: 0 } : { opacity: 0, x: 24 }}
       transition={t(1.7, 0.6)}

@@ -5,8 +5,8 @@ import { motion, useInView } from 'framer-motion';
 import { ClipboardList, FileText, Gauge, ListOrdered, type LucideIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { BAND_LABELS, DIMENSION_COUNT, MAX_SCORE, QUESTION_COUNT } from './data';
-import { SectionHeading, VIEW, useDelay, useTiming, wrap } from './primitives';
+import { BAND_LABELS, DIMENSION_COUNT, FOCUS_ACTION, MAX_SCORE, QUESTION_COUNT, SAMPLE_ACTIONS } from './data';
+import { Accent, IllustrativeTag, InsightCard, SectionHeading, VIEW, useDelay, useTiming, wrap } from './primitives';
 
 /**
  * Four stages on one path. The line draws forward as the section arrives and each
@@ -17,7 +17,7 @@ import { SectionHeading, VIEW, useDelay, useTiming, wrap } from './primitives';
 const STEPS: { title: string; body: string; icon: LucideIcon; visual: (on: boolean) => ReactNode }[] = [
   {
     title: 'Evaluate the business',
-    body: `Answer ${QUESTION_COUNT} questions across ${DIMENSION_COUNT} weighted dimensions. Each answer is a concrete description you recognise, not a 1–5 guess.`,
+    body: `Answer ${QUESTION_COUNT} questions across ${DIMENSION_COUNT} weighted dimensions. Each answer is a concrete description you recognise, not a 1–5 guess — about ten minutes in all.`,
     icon: ClipboardList,
     visual: (on) => <Options on={on} />,
   },
@@ -29,13 +29,13 @@ const STEPS: { title: string; body: string; icon: LucideIcon; visual: (on: boole
   },
   {
     title: 'Identify what to improve',
-    body: 'Gaps are ranked by how many points each would recover, and every one comes with a specific next step.',
+    body: 'Every gap is explained in plain words with one concrete next step, and the gaps are ranked by how many points each would recover.',
     icon: ListOrdered,
-    visual: (on) => <Ranked on={on} />,
+    visual: (on) => <Priority on={on} />,
   },
   {
     title: 'Support better decisions',
-    body: 'Unlock the full report to keep it as a PDF; a report linked to an application is archived with it for reviewers.',
+    body: 'A one-time payment unlocks the full report and its PDF; a report linked to an application is archived with it for reviewers.',
     icon: FileText,
     visual: (on) => <Report on={on} />,
   },
@@ -51,12 +51,16 @@ export function HowItWorks() {
   const delay = useDelay();
 
   return (
-    <section id="how-it-works" aria-labelledby="how-title" className="bi-y scroll-mt-16 bg-mist">
+    <section id="how-it-works" aria-labelledby="how-title" className="bi-y scroll-mt-16">
       <div className={wrap}>
         <SectionHeading
           id="how-title"
           eyebrow="How it works"
-          title="From assessment to actionable insight."
+          title={
+            <>
+              From assessment to <Accent>actionable insight.</Accent>
+            </>
+          }
           lead="One structured pass through the business, and a report that says what to do next."
         />
 
@@ -65,7 +69,7 @@ export function HowItWorks() {
           <span aria-hidden className="absolute left-[19px] top-5 bottom-5 w-px bg-line lg:hidden" />
           <motion.span
             aria-hidden
-            className="absolute left-[19px] top-5 bottom-5 w-[2px] origin-top bg-gradient-to-b from-mint to-teal lg:hidden"
+            className="absolute left-[19px] top-5 bottom-5 w-[2px] origin-top bg-(image:--gradient-score) lg:hidden"
             initial={{ scaleY: 0 }}
             animate={{ scaleY: on ? 1 : 0 }}
             transition={t(0.2, LINE, { ease: 'linear' })}
@@ -73,7 +77,7 @@ export function HowItWorks() {
           <span aria-hidden className="absolute left-5 right-[calc(25%-1.5rem)] top-5 hidden h-px bg-line lg:block" />
           <motion.span
             aria-hidden
-            className="absolute left-5 right-[calc(25%-1.5rem)] top-5 hidden h-[2px] origin-left bg-gradient-to-r from-mint to-teal lg:block"
+            className="absolute left-5 right-[calc(25%-1.5rem)] top-5 hidden h-[2px] origin-left bg-(image:--gradient-primary) lg:block"
             initial={{ scaleX: 0 }}
             animate={{ scaleX: on ? 1 : 0 }}
             transition={t(0.2, LINE, { ease: 'linear' })}
@@ -109,7 +113,7 @@ export function HowItWorks() {
 /* Small indicators, one per stage. Each switches on when the line reaches it. */
 
 function Panel({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('rounded-tile border border-line bg-surface p-3.5 shadow-card', className)}>{children}</div>;
+  return <div className={cn('bi-glass rounded-card p-4', className)}>{children}</div>;
 }
 
 function Options({ on }: { on: boolean }) {
@@ -166,26 +170,23 @@ function Bands({ on }: { on: boolean }) {
   );
 }
 
-function Ranked({ on }: { on: boolean }) {
-  const t = useTiming();
+/** The example's top priority action, exactly as the report would show it. */
+function Priority({ on }: { on: boolean }) {
   return (
-    <Panel>
-      {[92, 64, 40].map((w, i) => (
-        <div key={w} className="flex items-center gap-2 py-1">
-          <span className="bi-data w-4 text-mut">{i + 1}</span>
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-mist">
-            <motion.div
-              className="h-full origin-left rounded-full bg-amber"
-              style={{ width: `${w}%` }}
-              initial={{ scaleX: 0 }}
-              animate={{ scaleX: on ? 1 : 0 }}
-              transition={t(reach(2) + i * 0.1, 0.5)}
-            />
-          </div>
-        </div>
-      ))}
-      <p className="bi-data mt-1.5 text-mut">Ranked by points recoverable</p>
-    </Panel>
+    <div>
+      <IllustrativeTag className="mb-2" />
+      <InsightCard
+        compact
+        area={FOCUS_ACTION.dimension}
+        title={FOCUS_ACTION.title}
+        why={FOCUS_ACTION.gap}
+        action={FOCUS_ACTION.action}
+        points={FOCUS_ACTION.points}
+        priority={`1 of ${SAMPLE_ACTIONS.length}`}
+        on={on}
+        delay={reach(2)}
+      />
+    </div>
   );
 }
 

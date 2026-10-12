@@ -6,7 +6,7 @@ import { motion, useInView } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '../use-media-query';
 import { DIMENSIONS, toneFor } from './data';
-import { ConnectionPath, IllustrativeTag, ScoreRing, SectionHeading, VIEW, r2, useTiming, wrap } from './primitives';
+import { Accent, ConnectionPath, IllustrativeTag, ScoreRing, SectionHeading, VIEW, r2, useTiming, wrap } from './primitives';
 
 /**
  * Scattered → structured. The five dimensions start as loose, tilted blocks; as the
@@ -57,13 +57,17 @@ const SCATTER = [
 
 export function Challenge() {
   return (
-    <section id="challenge" aria-labelledby="challenge-title" className="bi-y scroll-mt-16 bg-mist">
+    <section id="challenge" aria-labelledby="challenge-title" className="bi-y bi-canvas scroll-mt-16 bg-mist">
       <div className={cn(wrap, 'grid items-center gap-x-12 gap-y-12 lg:grid-cols-12')}>
         <div className="lg:col-span-5">
           <SectionHeading
             id="challenge-title"
             eyebrow="The business challenge"
-            title="Growth starts with knowing where you stand."
+            title={
+              <>
+                Growth starts with knowing <Accent>where you stand.</Accent>
+              </>
+            }
             lead="Every startup has strengths, blind spots, and opportunities to improve. A structured assessment helps turn scattered information into a clearer picture of business readiness."
           />
           <dl className="mt-8 grid max-w-[30rem] gap-4 sm:grid-cols-2">
@@ -104,6 +108,18 @@ function Structure() {
           Five business dimensions — Management, Momentum, Business Model, Motivation and Market — connecting into one
           picture of readiness.
         </title>
+        <defs>
+          <linearGradient id="structure-glass" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.86" />
+            <stop offset="40%" stopColor="#ffffff" stopOpacity="0.58" />
+            <stop offset="75%" stopColor="#edf9f6" stopOpacity="0.72" />
+            <stop offset="100%" stopColor="#ffffff" stopOpacity="0.82" />
+          </linearGradient>
+          <filter id="structure-shadow" x="-30%" y="-30%" width="160%" height="180%">
+            <feDropShadow dx="0" dy="12" stdDeviation="12" floodColor="#0b1730" floodOpacity="0.09" />
+            <feDropShadow dx="0" dy="2" stdDeviation="5" floodColor="var(--brand-teal)" floodOpacity="0.14" />
+          </filter>
+        </defs>
 
         {/* Connections draw once the blocks have settled. */}
         {L.blocks.map((b, i) => {
@@ -163,7 +179,11 @@ function Structure() {
               transition={t(0.1 + i * 0.07, 0.9)}
               style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
             >
-              <rect x={b.x} y={b.y} width={L.bw} height={L.bh} rx={12} fill="var(--paper)" stroke="var(--line)" />
+              <rect x={b.x} y={b.y} width={L.bw} height={L.bh} rx={18} fill="url(#structure-glass)" stroke="rgba(255,255,255,0.92)" strokeWidth={1} filter="url(#structure-shadow)" />
+              {/* Specular meniscus top rim highlight */}
+              <path d={`M ${b.x + 16} ${b.y + 1.5} H ${b.x + L.bw - 16}`} stroke="#ffffff" strokeWidth={1.5} strokeLinecap="round" opacity={0.95} />
+              {/* Subtle specular catchlight left edge */}
+              <path d={`M ${b.x + 1.5} ${b.y + 14} V ${b.y + L.bh - 14}`} stroke="#ffffff" strokeWidth={1} strokeLinecap="round" opacity={0.65} />
               <text x={b.x + 14} y={b.y + 24} fontSize={13} fontWeight={600} fill="var(--ink)">
                 {d.title}
               </text>

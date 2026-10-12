@@ -10,7 +10,7 @@ import { useAccount, type Account, type AccountUser } from "@/hooks/use-account"
 import { assessmentDraftKey } from "../assessment/draft-key";
 import { priorityActions, type IStartupReport } from "../assessment/scoring";
 import type { ReportScreenProps } from "../components/assessment-shell";
-import { Nav } from "../components/landing/editorial/nav";
+import { SiteNav } from "../components/landing/intel/site-nav";
 import { CourseOffer, UnlockCard } from "../components/paywall";
 import { ReportView } from "../components/report-view";
 import { profileFromOnboarding } from "../onboarding/fields";
@@ -217,7 +217,7 @@ function IstartupInterviewPageComponent() {
 
     return (
         <div className="min-h-screen bg-paper">
-            <Nav variant="page" />
+            <SiteNav variant="page" />
             {body}
         </div>
     );

@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
@@ -9,22 +10,29 @@ import { cn } from '@/lib/utils';
  * pill chips for unscored choices.
  */
 
-export function Wordmark({ className }: { className?: string }) {
+/**
+ * The iStartup Score® gradient wordmark. `inverse` swaps in the version with white
+ * lettering for dark surfaces; the gradient "Score" is the same in both. Headers load it
+ * eagerly (it is above the fold); pass `eager={false}` lower down the page.
+ */
+export function Wordmark({
+  className,
+  inverse = false,
+  eager = true,
+}: {
+  className?: string;
+  inverse?: boolean;
+  eager?: boolean;
+}) {
   return (
-    <span className={cn('inline-flex items-center gap-2.5', className)}>
-      {/* A flat rendering of the app icon (app/icon.svg): the score gauge. */}
-      <svg viewBox="32 32 448 448" className="h-7 w-7 shrink-0" aria-hidden>
-        <rect x="32" y="32" width="448" height="448" rx="104" fill="var(--ink)" />
-        <path d="M121 312A135 135 0 0 1 391 312" fill="none" stroke="#22364b" strokeWidth="38" strokeLinecap="round" />
-        <path d="M121 312A135 135 0 0 1 378.4 254.9" fill="none" stroke="var(--brand-bright)" strokeWidth="38" strokeLinecap="round" />
-        <line x1="256" y1="312" x2="311" y2="216.7" stroke="#fff" strokeWidth="15" strokeLinecap="round" />
-        <circle cx="256" cy="312" r="24" fill="#fff" />
-        <circle cx="256" cy="312" r="10" fill="var(--ink)" />
-      </svg>
-      <span className="text-[15px] font-semibold tracking-[-0.02em] text-current">
-        iSTARTUP<span className="ml-1 font-normal opacity-70">Score</span>
-      </span>
-    </span>
+    <Image
+      src={inverse ? '/brand/istartup-score-wordmark-light.png' : '/brand/istartup-score-wordmark.png'}
+      alt="iStartup Score"
+      width={1151}
+      height={160}
+      loading={eager ? 'eager' : 'lazy'}
+      className={cn('h-[22px] w-auto shrink-0 sm:h-[26px]', className)}
+    />
   );
 }
 
@@ -33,7 +41,7 @@ export function SiteHeader({ right, wide = true }: { right?: ReactNode; wide?: b
     // A div rather than <header> so it never inherits page-level header styling.
     <div className="no-print sticky top-0 z-30 bg-paper/90 px-4 pb-3 pt-3 backdrop-blur sm:px-6">
       <div className={cn('mx-auto flex h-14 items-center justify-between gap-4 rounded-full bg-surface px-5', wide ? 'max-w-6xl' : 'max-w-3xl')}>
-        <Link href="/" aria-label="iSTARTUP Score home" className="rounded-md text-ink">
+        <Link href="/" aria-label="iStartup Score home" className="rounded-md text-ink">
           <Wordmark />
         </Link>
         {right ? <div className="flex items-center gap-3 text-sm text-mut">{right}</div> : null}

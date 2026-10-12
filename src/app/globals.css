@@ -73,6 +73,17 @@
   /* Spacing (on top of Tailwind's 4px scale; the system's base is 8). */
   --space-section: clamp(4rem, 2.5rem + 4vw, 6rem);
   --space-gutter: 1rem;
+
+  /* Brand, from the iStartup Score® wordmark. */
+  --brand-navy: #0b1730;
+  --brand-blue: #1260e8;
+  --brand-cyan: #079ed0;
+  --brand-teal: #10c7a4;
+
+  --gradient-logo: linear-gradient(100deg, #1260e8 0%, #079ed0 52%, #10c7a4 100%);
+  --gradient-primary: linear-gradient(110deg, #1260e8 0%, #087fd4 55%, #10c7a4 100%);
+  --gradient-score: linear-gradient(135deg, #1260e8 0%, #087fd4 42%, #10c7a4 100%);
+  --gradient-dark-hero: linear-gradient(135deg, #0b1730 0%, #132746 60%, #0b1730 100%);
 }
 
 /*
@@ -191,19 +202,21 @@
 .theme-bi {
   --ink: #0b1730; /* deep navy */
   --midnight: #132746;
-  --paper: #ffffff;
-  --surface: #ffffff;
+  --paper: #ffffff; /* page background: white */
+  --surface: #ffffff; /* cards */
   --mist: #eff3f8;
-  --mut: #526078; /* 6.6:1 on white, 5.9:1 on mist */
+  --mut: #526078; /* 6.2:1 on the background, 5.9:1 on mist */
   --line: #dce4ed;
   --line-strong: #c3cfdc;
 
-  --mint: #70d6b0; /* fill-only */
-  --mint-soft: #e2f6ee;
-  --mint-ink: #17795a; /* text-safe mint, 5.4:1 on white */
-  --teal: #2aa79a; /* fill-only: the far end of the mint gradient */
-  --funder: #234b80;
-  --funder-soft: #e5ecf5;
+  /* Accents are the wordmark's: blue → cyan → teal. */
+  --mint: var(--brand-teal); /* fill-only on light; text-safe on navy (8:1) */
+  --mint-soft: #e2f7f2;
+  --mint-ink: #0a7f69; /* text-safe teal, 4.9:1 on white */
+  --teal: var(--brand-cyan); /* fill-only on light */
+  --cyan-ink: #0a7fa8; /* text-safe cyan, 4.6:1 on white */
+  --funder: var(--brand-blue); /* text-safe, 5.4:1 on white */
+  --funder-soft: #e5eefd;
   --amber: #e3a63b; /* fill-only */
   --amber-soft: #fbf0db;
   --amber-ink: #8a5a00;
@@ -212,15 +225,23 @@
   --on-dark-muted: rgba(255, 255, 255, 0.7);
   --on-dark-line: rgba(255, 255, 255, 0.12);
 
-  --r-btn: 10px;
-  --r-sm: 12px;
-  --r-md: 16px;
+  --r-btn: 12px;
+  --r-sm: 16px;
+  --r-md: 24px;
 
   --bi-gutter: clamp(1rem, 0.4rem + 2.4vw, 2rem);
   --bi-section: clamp(3.5rem, 2rem + 4vw, 5.5rem);
 
-  --bi-shadow-card: 0 1px 2px rgba(11, 23, 48, 0.05), 0 8px 24px -12px rgba(11, 23, 48, 0.14);
-  --bi-shadow-float: 0 2px 4px rgba(11, 23, 48, 0.04), 0 18px 40px -18px rgba(11, 23, 48, 0.28);
+  --bi-shadow-card:
+    0 1px 2px rgba(11, 23, 48, 0.04),
+    0 10px 24px -8px rgba(11, 23, 48, 0.1),
+    0 20px 40px -16px rgba(11, 35, 75, 0.12),
+    0 0 24px -4px color-mix(in srgb, var(--brand-teal) 8%, transparent);
+  --bi-shadow-float:
+    0 2px 6px rgba(11, 23, 48, 0.04),
+    0 18px 38px -10px rgba(11, 23, 48, 0.14),
+    0 32px 64px -18px rgba(11, 35, 75, 0.24),
+    0 0 36px 0 color-mix(in srgb, var(--brand-teal) 18%, transparent);
 
   background-color: var(--paper);
   color: var(--ink);
@@ -321,6 +342,9 @@
 
   /* Landing (resolve inside .theme-bi). */
   --color-midnight: var(--midnight);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-cyan: var(--brand-cyan);
+  --color-brand-teal: var(--brand-teal);
   --color-teal: var(--teal);
   --color-funder: var(--funder);
   --color-funder-soft: var(--funder-soft);
@@ -476,7 +500,7 @@
   /* Hero: 38px on phones, ~50px on tablets, 68px on desktop. */
   .bi-h1 {
     font-size: clamp(2.375rem, 1.5rem + 3.2vw, 4rem);
-    font-weight: 650;
+    font-weight: 700;
     line-height: 1.06;
     letter-spacing: -0.035em;
   }
@@ -511,6 +535,247 @@
     text-transform: uppercase;
   }
 
+  /* Accent phrase in a heading, in the wordmark hues. Light surfaces: brand blue → text-safe
+     cyan → text-safe teal (each at least 4.3:1; headings only). Navy: teal → cyan (above 5:1). */
+  .bi-accent {
+    background-image: linear-gradient(100deg, var(--brand-blue) 0%, var(--cyan-ink) 52%, var(--mint-ink) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  .bi-accent-dark {
+    background-image: linear-gradient(90deg, var(--mint), var(--teal));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  /*
+   * Liquid Glass Surfaces.
+   *
+   * Ultra-premium fluid glassmorphism with:
+   * - Deep multi-stop optical diffusion blur & saturation boost
+   * - Crisp double-bevel specular meniscus (top rim reflection & light catch)
+   * - Prismatic chromatic dispersion sheen (subtle mint & sapphire refraction)
+   * - Fluid elevation caustics with soft colored ambient aura
+   * - Dynamic floating lift and responsive glint sweep on hover
+   */
+  .bi-glass,
+  .liquid-glass,
+  .bi-glass-dark,
+  .liquid-glass-dark {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    -webkit-backdrop-filter: blur(22px) saturate(190%) contrast(102%) brightness(103%);
+    backdrop-filter: blur(22px) saturate(190%) contrast(102%) brightness(103%);
+    transition:
+      transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+      border-color 0.4s ease,
+      background-color 0.4s ease;
+  }
+
+  /* Light Liquid Glass */
+  .bi-glass,
+  .liquid-glass {
+    background-image: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.78) 0%,
+      rgba(255, 255, 255, 0.52) 36%,
+      rgba(240, 248, 255, 0.44) 70%,
+      rgba(235, 252, 248, 0.62) 100%
+    );
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    box-shadow:
+      /* Specular meniscus: top crisp rim */
+      inset 0 1.5px 1px 0 rgba(255, 255, 255, 1),
+      /* Left subtle catch-light */
+      inset 1px 0 1px 0 rgba(255, 255, 255, 0.65),
+      /* Bottom ambient refraction */
+      inset 0 -1.5px 1.5px 0 rgba(11, 23, 48, 0.04),
+      /* Volumetric internal diffusion */
+      inset 0 0 24px 0 rgba(255, 255, 255, 0.4),
+      /* Contact shadow */
+      0 2px 4px -1px rgba(11, 23, 48, 0.04),
+      /* Mid-field elevation */
+      0 12px 28px -6px rgba(11, 23, 48, 0.09),
+      /* Deep diffusion */
+      0 24px 48px -18px rgba(11, 35, 75, 0.15),
+      /* Soft turquoise fluid caustic glow */
+      0 0 32px -4px color-mix(in srgb, var(--brand-teal) 12%, transparent);
+  }
+
+  .bi-glass:hover,
+  .liquid-glass:hover,
+  .liquid-glass-interactive:hover {
+    transform: translateY(-3px) scale(1.004);
+    border-color: rgba(255, 255, 255, 0.98);
+    box-shadow:
+      inset 0 2px 1.5px 0 rgba(255, 255, 255, 1),
+      inset 1px 0 1.5px 0 rgba(255, 255, 255, 0.85),
+      inset 0 -1.5px 1.5px 0 rgba(11, 23, 48, 0.03),
+      inset 0 0 30px 0 rgba(255, 255, 255, 0.6),
+      0 4px 8px -2px rgba(11, 23, 48, 0.05),
+      0 18px 38px -8px rgba(11, 23, 48, 0.13),
+      0 36px 64px -16px rgba(11, 35, 75, 0.22),
+      0 0 36px 2px color-mix(in srgb, var(--brand-teal) 22%, transparent);
+  }
+
+  /* Dark Liquid Glass */
+  .bi-glass-dark,
+  .liquid-glass-dark {
+    background-image: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.12) 0%,
+      rgba(255, 255, 255, 0.04) 40%,
+      color-mix(in srgb, var(--brand-teal) 6%, transparent) 75%,
+      rgba(255, 255, 255, 0.02) 100%
+    );
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow:
+      inset 0 1.5px 0.5px 0 rgba(255, 255, 255, 0.35),
+      inset 1px 0 1px 0 rgba(255, 255, 255, 0.15),
+      inset 0 0 20px 0 rgba(255, 255, 255, 0.04),
+      0 4px 10px -2px rgba(0, 0, 0, 0.35),
+      0 20px 48px -12px rgba(0, 0, 0, 0.65),
+      0 0 32px -4px color-mix(in srgb, var(--brand-teal) 16%, transparent);
+  }
+
+  .bi-glass-dark:hover,
+  .liquid-glass-dark:hover {
+    transform: translateY(-3px) scale(1.004);
+    border-color: rgba(255, 255, 255, 0.3);
+    box-shadow:
+      inset 0 2px 1px 0 rgba(255, 255, 255, 0.55),
+      inset 0 0 26px 0 rgba(255, 255, 255, 0.08),
+      0 6px 14px -3px rgba(0, 0, 0, 0.4),
+      0 28px 56px -12px rgba(0, 0, 0, 0.75),
+      0 0 44px 0 color-mix(in srgb, var(--brand-teal) 28%, transparent);
+  }
+
+  /* Prismatic Internal Refraction Layer */
+  .bi-glass::before,
+  .liquid-glass::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 14% 14%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.15) 35%, transparent 60%),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, color-mix(in srgb, var(--brand-teal) 10%, transparent) 40%, color-mix(in srgb, var(--brand-blue) 6%, transparent) 72%, rgba(255, 255, 255, 0.35) 100%);
+    opacity: 0.95;
+    transition: opacity 0.4s ease;
+  }
+
+  .bi-glass-dark::before,
+  .liquid-glass-dark::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 14% 15%, rgba(255, 255, 255, 0.18) 0%, transparent 48%),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, color-mix(in srgb, var(--brand-teal) 8%, transparent) 50%, transparent 75%);
+  }
+
+  /* Fluid Glint Sweep Sheen */
+  .bi-glass::after,
+  .liquid-glass::after {
+    content: '';
+    position: absolute;
+    top: -25%;
+    bottom: -25%;
+    left: -90%;
+    width: 60%;
+    pointer-events: none;
+    opacity: 0;
+    transform: skewX(-20deg);
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.08) 25%,
+      rgba(255, 255, 255, 0.85) 50%,
+      color-mix(in srgb, var(--brand-teal) 40%, transparent) 55%,
+      transparent 100%
+    );
+    filter: blur(1.5px);
+  }
+
+  .bi-glass-dark::after,
+  .liquid-glass-dark::after {
+    content: '';
+    position: absolute;
+    top: -25%;
+    bottom: -25%;
+    left: -90%;
+    width: 60%;
+    pointer-events: none;
+    opacity: 0;
+    transform: skewX(-20deg);
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.04) 25%,
+      rgba(255, 255, 255, 0.3) 50%,
+      color-mix(in srgb, var(--brand-teal) 20%, transparent) 55%,
+      transparent 100%
+    );
+    filter: blur(1.5px);
+  }
+
+  /* Rich liquid color canvas behind glass for optimal refraction */
+  .bi-canvas {
+    background-image:
+      radial-gradient(65% 60% at 8% 10%, color-mix(in srgb, var(--mint) 45%, transparent), transparent 70%),
+      radial-gradient(55% 65% at 92% 90%, color-mix(in srgb, var(--funder) 25%, transparent), transparent 70%),
+      radial-gradient(45% 45% at 75% 15%, color-mix(in srgb, var(--teal) 22%, transparent), transparent 70%),
+      radial-gradient(40% 40% at 35% 65%, color-mix(in srgb, var(--tech) 12%, transparent), transparent 70%);
+  }
+
+  .bi-canvas-dark {
+    background-image:
+      radial-gradient(45% 50% at 82% 30%, color-mix(in srgb, var(--mint) 22%, transparent), transparent 70%),
+      radial-gradient(50% 55% at 70% 85%, color-mix(in srgb, var(--funder) 45%, transparent), transparent 70%),
+      radial-gradient(40% 40% at 20% 20%, color-mix(in srgb, var(--teal) 15%, transparent), transparent 70%),
+      var(--gradient-dark-hero);
+  }
+
+  .bi-dark-hero {
+    background-image: var(--gradient-dark-hero);
+  }
+
+  /* The wordmark's gradient as text — for large display use (the logo itself is an image). */
+  .bi-logo-score {
+    background-image: var(--gradient-logo);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Primary action: the brand gradient, white label, a soft blue lift. */
+  .bi-btn-primary {
+    background-image: var(--gradient-primary);
+    color: #fff;
+    box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--brand-blue) 70%, transparent);
+    transition: filter 200ms, box-shadow 200ms, transform 200ms;
+  }
+
+  /* Lift, not lighten: brightening would cut the white label's contrast. */
+  .bi-btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 30px -12px color-mix(in srgb, var(--brand-blue) 80%, transparent);
+  }
+
   /* Data labels in panels and charts. */
   .bi-data {
     font-size: 0.8125rem;
@@ -536,6 +801,32 @@
     animation: bi-pulse 4s ease-in-out infinite;
     transform-box: fill-box;
     transform-origin: center;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bi-glass:hover::after,
+  .liquid-glass:hover::after,
+  .bi-glass-dark:hover::after,
+  .liquid-glass-dark:hover::after {
+    animation: bi-glint 0.95s ease-out;
+  }
+}
+
+@keyframes bi-glint {
+  0% {
+    left: -90%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.9;
+  }
+  85% {
+    opacity: 0.9;
+  }
+  100% {
+    left: 140%;
+    opacity: 0;
   }
 }
 

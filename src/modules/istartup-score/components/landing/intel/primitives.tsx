@@ -6,7 +6,7 @@ import { motion, useReducedMotion, type Transition } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { ILLUSTRATIVE } from './data';
+import { ILLUSTRATIVE, MAX_SCORE } from './data';
 import { usePrefersReducedMotion } from '../use-media-query';
 
 /**
@@ -67,7 +67,17 @@ export function arc(cx: number, cy: number, r: number, from: number, to: number)
 /* ── Text ─────────────────────────────────────────────────────────────── */
 
 export function Eyebrow({ children, dark = false, className }: { children: ReactNode; dark?: boolean; className?: string }) {
-  return <p className={cn('bi-eyebrow', dark ? 'text-mint' : 'text-funder', className)}>{children}</p>;
+  return (
+    <p className={cn('bi-eyebrow flex items-center gap-3', dark ? 'text-mint' : 'text-funder', className)}>
+      <span aria-hidden className={cn('h-[3px] w-6 shrink-0 rounded-full bg-gradient-to-r', dark ? 'from-mint to-teal' : 'from-funder to-mint')} />
+      {children}
+    </p>
+  );
+}
+
+/** The phrase in a heading that carries its point, in the accent gradient. */
+export function Accent({ children, dark = false }: { children: ReactNode; dark?: boolean }) {
+  return <span className={dark ? 'bi-accent-dark' : 'bi-accent'}>{children}</span>;
 }
 
 export function SectionHeading({
@@ -101,7 +111,8 @@ export function SectionHeading({
 /* ── Actions ──────────────────────────────────────────────────────────── */
 
 const BUTTON = {
-  primary: 'bg-ink text-on-dark hover:bg-midnight',
+  primary: 'bi-btn-primary',
+  ink: 'bg-ink text-on-dark hover:bg-midnight',
   secondary: 'border border-line-strong bg-paper text-ink hover:border-ink',
   inverse: 'bg-paper text-ink hover:bg-mist',
   outlineDark: 'border border-white/25 text-on-dark hover:border-white/60 hover:bg-white/5',
@@ -124,7 +135,7 @@ export function ButtonLink({
     <Link
       href={href}
       className={cn(
-        'group inline-flex h-12 items-center justify-center gap-2 rounded-btn px-6 text-[15px] font-semibold tracking-[-0.01em] transition-[background-color,border-color,transform] duration-200 active:translate-y-px',
+        'group inline-flex h-12 items-center justify-center gap-2 rounded-btn px-6 text-[15px] font-semibold tracking-[-0.01em] transition-[background-color,border-color,transform,filter,box-shadow] duration-200 active:translate-y-px',
         BUTTON[variant],
         className,
       )}
@@ -325,9 +336,9 @@ export function MetricLabel({
         y={y}
         width={w}
         height={30}
-        rx={8}
-        fill={dark ? 'var(--midnight)' : 'var(--paper)'}
-        stroke={dark ? 'rgba(255,255,255,0.14)' : 'var(--line)'}
+        rx={15}
+        fill={dark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.85)'}
+        stroke={dark ? 'rgba(255,255,255,0.16)' : 'rgba(11,23,48,0.08)'}
       />
       <text x={x + 10} y={y + 19.5} fontSize={11.5} fontWeight={500} fill={dark ? 'rgba(255,255,255,0.75)' : 'var(--mut)'}>
         {label}
@@ -483,6 +494,7 @@ export function InsightCard({
   priority,
   on,
   delay = 0,
+  compact = false,
   className,
 }: {
   area: string;
@@ -493,6 +505,8 @@ export function InsightCard({
   priority?: string;
   on: boolean;
   delay?: number;
+  /** Narrow columns: tighter padding and type. */
+  compact?: boolean;
   className?: string;
 }) {
   const t = useTiming();
@@ -503,7 +517,7 @@ export function InsightCard({
   });
   return (
     <motion.article
-      className={cn('relative overflow-hidden rounded-card border border-line bg-surface p-5 shadow-card sm:p-6', className)}
+      className={cn('bi-glass rounded-card', compact ? 'p-4' : 'p-5 sm:p-6', className)}
       initial={{ opacity: 0, y: 16 }}
       animate={on ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
       transition={t(delay, 0.6)}
@@ -511,31 +525,31 @@ export function InsightCard({
       {/* The accent line: draws down the edge once the card has settled. */}
       <motion.span
         aria-hidden
-        className="absolute inset-y-0 left-0 w-[3px] origin-top bg-gradient-to-b from-mint to-teal"
+        className="absolute inset-y-0 left-0 w-[3px] origin-top bg-(image:--gradient-score)"
         initial={{ scaleY: 0 }}
         animate={{ scaleY: on ? 1 : 0 }}
         transition={t(delay + 0.45, 0.7)}
       />
-      <motion.div className="flex items-center justify-between gap-3" {...item(0.1)}>
+      <motion.div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5" {...item(0.1)}>
         <span className="inline-flex items-center gap-2 rounded-full bg-amber-soft px-2.5 py-1 text-[12px] font-semibold text-amber-ink">
           <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-amber" />
           Improve · {area}
         </span>
         {priority && <span className="bi-data text-mut">{priority}</span>}
       </motion.div>
-      <motion.h3 className="bi-h3 mt-4 text-ink" {...item(0.18)}>
+      <motion.h3 className={cn('mt-4 text-ink', compact ? 'text-[15px] leading-[1.3] font-semibold tracking-[-0.015em]' : 'bi-h3')} {...item(0.18)}>
         {title}
       </motion.h3>
-      <motion.p className="mt-1.5 text-[14px] leading-relaxed text-mut" {...item(0.26)}>
+      <motion.p className={cn('mt-1.5 leading-relaxed text-mut', compact ? 'text-[13px]' : 'text-[14px]')} {...item(0.26)}>
         {why}
       </motion.p>
-      <motion.div className="mt-4 rounded-tile bg-mint-soft/70 p-3.5" {...item(0.36)}>
+      <motion.div className={cn('rounded-tile bg-mint-soft/70', compact ? 'mt-3 p-3' : 'mt-4 p-3.5')} {...item(0.36)}>
         <p className="bi-data font-semibold text-mint-ink">Suggested next step</p>
-        <p className="mt-1 text-[14px] leading-relaxed text-ink">{action}</p>
+        <p className={cn('mt-1 leading-relaxed text-ink', compact ? 'text-[13px]' : 'text-[14px]')}>{action}</p>
       </motion.div>
       {points !== undefined && (
         <motion.p className="bi-data mt-3 text-mut" {...item(0.44)}>
-          Worth up to <span className="font-semibold text-ink">{points} points</span> of 500 if fully addressed
+          Worth up to <span className="font-semibold text-ink">{points} points</span> of {MAX_SCORE} if fully addressed
         </motion.p>
       )}
     </motion.article>

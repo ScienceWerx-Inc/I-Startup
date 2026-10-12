@@ -7,7 +7,7 @@ import { motion, useInView } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Wordmark } from '../../chrome';
 import { NAV_LINKS } from './site-nav';
-import { ASSESSMENT_HREF, ButtonLink, ConnectionPath, DataNode, REVIEWER_HREF, SIGN_IN_HREF, VIEW, useTiming, wrap } from './primitives';
+import { ASSESSMENT_HREF, Accent, ButtonLink, ConnectionPath, DataNode, REVIEWER_HREF, SIGN_IN_HREF, VIEW, useTiming, wrap } from './primitives';
 
 /** The final call to action, on navy, with a faint network behind it. */
 export function Closing() {
@@ -16,7 +16,7 @@ export function Closing() {
   const t = useTiming();
 
   return (
-    <section aria-labelledby="closing-title" className="relative overflow-hidden bg-ink text-on-dark">
+    <section aria-labelledby="closing-title" className="bi-dark-hero relative overflow-hidden bg-ink text-on-dark">
       <Backdrop on={on} />
       <div ref={ref} className={cn(wrap, 'relative bi-y text-center')}>
         <motion.div
@@ -26,7 +26,7 @@ export function Closing() {
           transition={t(0, 0.55)}
         >
           <h2 id="closing-title" className="bi-h2 text-balance">
-            Clarity for founders. <span className="text-mint">Insight for funders.</span>
+            Clarity for founders. <Accent dark>Insight for funders.</Accent>
           </h2>
           <p className="bi-lead mx-auto mt-5 max-w-[34rem] text-on-dark-muted">
             Whether you&apos;re building a startup or evaluating one, make business readiness easier to understand.
@@ -79,7 +79,6 @@ export function Footer() {
       links: [
         { label: 'Start your assessment', href: ASSESSMENT_HREF },
         { label: 'Sign in', href: SIGN_IN_HREF },
-        { label: 'Methodology', href: '#methodology' },
         { label: 'FAQ', href: '#faq' },
       ],
     },
@@ -96,8 +95,8 @@ export function Footer() {
     <footer className="border-t border-on-dark-line bg-ink text-on-dark-muted">
       <div className={cn(wrap, 'grid gap-10 py-14 md:grid-cols-12')}>
         <div className="md:col-span-4">
-          <Link href="/" aria-label="iSTARTUP Score home" className="inline-block rounded-md text-on-dark">
-            <Wordmark />
+          <Link href="/" aria-label="iStartup Score home" className="inline-block rounded-md text-on-dark">
+            <Wordmark inverse eager={false} className="h-[26px] sm:h-[30px]" />
           </Link>
           <p className="mt-4 max-w-[22rem] text-[14px] leading-relaxed">
             A structured assessment of startup readiness — for founders deciding what to work on, and for the reviewers
@@ -120,7 +119,7 @@ export function Footer() {
         ))}
       </div>
       <div className={cn(wrap, 'flex flex-col gap-2 border-t border-on-dark-line py-6 text-[13px] sm:flex-row sm:justify-between')}>
-        <p>© {new Date().getFullYear()} ScienceWerx. iSTARTUP Score.</p>
+        <p>© {new Date().getFullYear()} ScienceWerx. iStartup Score.</p>
         <p>Results on this page are illustrative examples.</p>
       </div>
     </footer>

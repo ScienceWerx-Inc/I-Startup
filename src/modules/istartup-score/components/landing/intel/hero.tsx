@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 
 import { cn } from '@/lib/utils';
+import { DIMENSION_COUNT, QUESTION_COUNT } from './data';
 import { ASSESSMENT_HREF, Accent, ButtonLink, Eyebrow, useTiming, wrap } from './primitives';
 
 /**
@@ -27,7 +28,8 @@ const STACKED_FADE = 'linear-gradient(180deg, var(--paper) 0%, transparent 28%)'
 /** On very wide screens the photo's own left edge falls in view; this keeps it soft. */
 const EDGE_FADE = 'linear-gradient(90deg, var(--paper) 0%, transparent 18%)';
 
-export function Hero() {
+/** `reportPrice`: the full report's price, formatted on the server from the payment config. */
+export function Hero({ reportPrice }: { reportPrice: string }) {
   const t = useTiming();
   const up = (delay: number) => ({
     'data-reveal': true,
@@ -42,25 +44,26 @@ export function Hero() {
       <div className={cn(wrap, 'relative z-10 pb-10 pt-10 sm:pt-14 xl:py-16')}>
         <div className="max-w-[600px] xl:max-w-[500px]">
           <motion.div {...up(0)}>
-            <Eyebrow>Startup assessment &amp; business intelligence</Eyebrow>
+            <Eyebrow>Startup readiness assessment</Eyebrow>
           </motion.div>
           <motion.h1 id="hero-title" className="bi-h1 mt-5 text-ink" {...up(0.06)}>
-            Turn Business <br className="hidden sm:block" />
-            Potential <Accent>Into</Accent> <br className="hidden sm:block" />
-            <Accent>Progress.</Accent>
+            Know where your startup stands <Accent>and what to improve next.</Accent>
           </motion.h1>
           <motion.p className="bi-lead mt-6 text-pretty text-mut" {...up(0.14)}>
-            Whether you&apos;re building a startup or evaluating one, iStartup Score helps you understand business
-            readiness, uncover opportunities, and make more informed decisions.
+            Answer {QUESTION_COUNT} questions in about ten minutes. Get a readiness score across {DIMENSION_COUNT} dimensions
+            and a prioritised action plan.
           </motion.p>
           <motion.div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap [&>a]:whitespace-nowrap" {...up(0.22)}>
             <ButtonLink href={ASSESSMENT_HREF} variant="ink" arrow className="h-[54px]">
-              I&apos;m a Startup Founder
+              Start your assessment
             </ButtonLink>
-            <ButtonLink href="#funders" variant="secondary" arrow className="h-[54px]">
-              I&apos;m a Funder
+            <ButtonLink href="#reviewers" variant="secondary" arrow className="h-[54px]">
+              For program reviewers
             </ButtonLink>
           </motion.div>
+          <motion.p className="bi-data mt-4 text-mut" {...up(0.28)}>
+            Score and readiness band free · Full report {reportPrice}, one-time
+          </motion.p>
         </div>
       </div>
 

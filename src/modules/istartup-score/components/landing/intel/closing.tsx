@@ -26,17 +26,17 @@ export function Closing() {
           transition={t(0, 0.55)}
         >
           <h2 id="closing-title" className="bi-h2 text-balance">
-            Clarity for founders. <Accent dark>Insight for funders.</Accent>
+            Clarity for founders. <Accent dark>Consistency for program reviewers.</Accent>
           </h2>
           <p className="bi-lead mx-auto mt-5 max-w-[34rem] text-on-dark-muted">
-            Whether you&apos;re building a startup or evaluating one, make business readiness easier to understand.
+            Whether you&apos;re building a startup or reviewing applications, make business readiness easier to understand.
           </p>
           <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
             <ButtonLink href={ASSESSMENT_HREF} variant="inverse" arrow>
-              Assess Your Startup
+              Start Your Assessment
             </ButtonLink>
-            <ButtonLink href="#funders" variant="outlineDark">
-              Explore for Funders
+            <ButtonLink href="#reviewers" variant="outlineDark">
+              For Program Reviewers
             </ButtonLink>
           </div>
         </motion.div>
@@ -83,9 +83,9 @@ export function Footer() {
       ],
     },
     {
-      title: 'For funders',
+      title: 'For program reviewers',
       links: [
-        { label: 'How reports are read', href: '#funders' },
+        { label: 'How reports are read', href: '#reviewers' },
         { label: 'Reviewer sign in', href: REVIEWER_HREF },
       ],
     },

@@ -88,7 +88,23 @@ export const FOCUS_ACTION = SAMPLE_ACTIONS[0];
 /** The four readiness bands, lowest first, by their real thresholds. */
 export const BAND_LABELS = [0, ...BAND_THRESHOLDS.map((t) => t + 1)].map((score) => bandFor(score).label);
 
-/** Two more illustrative applicants for the funder view, scored the same way. */
+/** Each band with the score range it covers (a band starts one point above the threshold below it). */
+export const BAND_RANGES = BAND_LABELS.map((label, i) => ({
+  label,
+  from: i === 0 ? 0 : BAND_THRESHOLDS[i - 1] + 1,
+  to: BAND_THRESHOLDS[i] ?? MAX_SCORE,
+}));
+
+export const SAMPLE_STAGE = REPORT.profile.stage;
+
+/** The example's two strongest answers, as the report words them. */
+export const SAMPLE_STRENGTHS = REPORT.strengths.slice(0, 2).map((f) => ({
+  id: f.question.id,
+  dimension: SECTIONS.find((s) => s.key === f.question.category)!.title,
+  text: f.question.strength,
+}));
+
+/** Two more illustrative applicants for the reviewer view, scored the same way. */
 const answersFrom = (values: number[]): Answers =>
   Object.fromEntries(QUESTIONS.map((q, i) => [q.id, values[i % values.length]]));
 export const OTHER_APPLICANTS = [

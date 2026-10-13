@@ -1,9 +1,6 @@
 import IStartupScoreLandingPage from "@/modules/istartup-score/app/landing";
 
 export default function Home() {
-  return (
-    <main>
-      <IStartupScoreLandingPage />
-    </main>
-  );
+  // The landing page renders its own <main>.
+  return <IStartupScoreLandingPage />;
 }

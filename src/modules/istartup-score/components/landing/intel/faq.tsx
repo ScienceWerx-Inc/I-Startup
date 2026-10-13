@@ -22,8 +22,8 @@ const QA = [
     a: 'No. The score measures readiness against a fixed set of criteria. It can support a conversation with funders, but it does not approve funding, predict returns, or replace due diligence.',
   },
   {
-    q: "Can funders access every startup's results?",
-    a: 'There is no directory of startups or scores for funders to browse. Completed reports are archived for the program that runs the assessment, and are reviewed alongside the application they are linked to.',
+    q: "Can program reviewers see every startup's results?",
+    a: 'No. There is no directory of startups or scores to browse. Completed reports are archived for the program that runs the assessment, and are reviewed alongside the application they are linked to.',
   },
   {
     q: 'How is startup data handled?',

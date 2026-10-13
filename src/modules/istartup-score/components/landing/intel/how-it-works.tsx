@@ -23,13 +23,13 @@ const STEPS: { title: string; body: string; icon: LucideIcon; visual: (on: boole
   },
   {
     title: 'Understand the results',
-    body: `See a score out of ${MAX_SCORE}, a result for every dimension, and where that places you — from early stage to investment ready.`,
+    body: `See a score out of ${MAX_SCORE}, a result for every dimension, and which of ${BAND_LABELS.length} readiness bands it falls in.`,
     icon: Gauge,
     visual: (on) => <Bands on={on} />,
   },
   {
     title: 'Identify what to improve',
-    body: 'Every gap is explained in plain words with one concrete next step, and the gaps are ranked by how many points each would recover.',
+    body: 'Every gap comes with why it matters to the business and one concrete next step, ordered by how much each would lift the score.',
     icon: ListOrdered,
     visual: (on) => <Priority on={on} />,
   },

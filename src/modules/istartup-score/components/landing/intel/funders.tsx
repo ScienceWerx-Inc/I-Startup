@@ -22,14 +22,18 @@ import {
 } from './primitives';
 
 /**
- * The opportunity network. Applicants as nodes, each with a compact assessment card;
+ * The program reviewer view. Applicants as nodes, each with a compact assessment card;
  * one becomes the focus and its full report slides in. The tone is institutional:
  * navy, muted blue, thin lines, one mint path for the selection. It suggests a way to
  * read results side by side — not approval, returns or risk prediction.
  */
 
 const POINTS = [
-  { icon: Scale, title: 'Like-for-like results', body: `Every startup answers the same ${QUESTION_COUNT} questions, scored the same way.` },
+  {
+    icon: Scale,
+    title: 'One structure for every report',
+    body: `Every applicant answers the same ${QUESTION_COUNT} questions, scored the same way: a shared starting point, read alongside each startup's stage and business model.`,
+  },
   { icon: Layers, title: 'Readiness by dimension', body: 'Scores per dimension, with strengths and gaps in plain language.' },
   { icon: FileSearch, title: 'Tied to the application', body: 'A completed report is archived with the application it was linked to.' },
 ];
@@ -60,19 +64,19 @@ const PANEL_Y = r2(H * 0.06 + 64);
 
 export function Funders() {
   return (
-    <section id="funders" aria-labelledby="funders-title" className="bi-y bi-canvas-dark relative scroll-mt-16 overflow-hidden bg-ink text-on-dark">
+    <section id="reviewers" aria-labelledby="reviewers-title" className="bi-y bi-canvas-dark relative scroll-mt-16 overflow-hidden bg-ink text-on-dark">
       <div className={cn(wrap, 'grid items-center gap-x-14 gap-y-12 lg:grid-cols-12')}>
         <div className="lg:col-span-5">
           <SectionHeading
-            id="funders-title"
+            id="reviewers-title"
             dark
-            eyebrow="For funders"
+            eyebrow="For program reviewers"
             title={
               <>
-                Evaluate opportunities with <Accent dark>greater confidence.</Accent>
+                Review applications from <Accent dark>a consistent starting point.</Accent>
               </>
             }
-            lead="Review structured startup assessment results to understand business readiness, identify potential gaps, and support your due diligence process."
+            lead="For accelerators, incubators and startup programs: each applicant's assessment arrives in the same structure, with readiness by dimension, strengths and gaps in plain language."
           />
           <ul className="mt-8 grid gap-5">
             {POINTS.map((p) => (

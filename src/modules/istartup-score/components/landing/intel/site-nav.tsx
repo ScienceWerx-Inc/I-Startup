@@ -12,7 +12,9 @@ import { ASSESSMENT_HREF, MY_ASSESSMENT_HREF, SIGN_IN_HREF, useTiming, wrap } fr
 
 export const NAV_LINKS = [
   { label: 'How It Works', href: '#how-it-works' },
-  { label: 'For Funders', href: '#funders' },
+  { label: 'Scoring', href: '#scoring' },
+  { label: 'Pricing', href: '#pricing' },
+  { label: 'For Program Reviewers', href: '#reviewers' },
 ] as const;
 
 /**

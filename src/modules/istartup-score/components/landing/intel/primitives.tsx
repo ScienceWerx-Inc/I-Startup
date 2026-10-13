@@ -540,16 +540,17 @@ export function InsightCard({
       <motion.h3 className={cn('mt-4 text-ink', compact ? 'text-[15px] leading-[1.3] font-semibold tracking-[-0.015em]' : 'bi-h3')} {...item(0.18)}>
         {title}
       </motion.h3>
-      <motion.p className={cn('mt-1.5 leading-relaxed text-mut', compact ? 'text-[13px]' : 'text-[14px]')} {...item(0.26)}>
-        {why}
-      </motion.p>
+      <motion.div className="mt-2" {...item(0.26)}>
+        <p className="bi-data font-semibold text-funder">Why it matters</p>
+        <p className={cn('mt-1 leading-relaxed text-mut', compact ? 'text-[13px]' : 'text-[14px]')}>{why}</p>
+      </motion.div>
       <motion.div className={cn('rounded-tile bg-mint-soft/70', compact ? 'mt-3 p-3' : 'mt-4 p-3.5')} {...item(0.36)}>
         <p className="bi-data font-semibold text-mint-ink">Suggested next step</p>
         <p className={cn('mt-1 leading-relaxed text-ink', compact ? 'text-[13px]' : 'text-[14px]')}>{action}</p>
       </motion.div>
       {points !== undefined && (
         <motion.p className="bi-data mt-3 text-mut" {...item(0.44)}>
-          Worth up to <span className="font-semibold text-ink">{points} points</span> of {MAX_SCORE} if fully addressed
+          Score impact: up to +{points} of {MAX_SCORE}
         </motion.p>
       )}
     </motion.article>

@@ -1,7 +1,6 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
-import { sql } from '@vercel/postgres';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 
-import { ensureAuthTables } from '@/lib/db';
+import { col, nowIso, rows } from '@/lib/db';
 
 /**
  * What founders can buy, and how they pay for it.
@@ -55,13 +54,23 @@ export function paymentsMode(): PaymentsMode {
   return 'disabled';
 }
 
+export interface PurchaseRow {
+  id: string;
+  user_id: string;
+  report_id: string | null;
+  product: Product;
+  status: 'pending' | 'paid';
+  provider: 'stripe' | 'mock';
+  provider_ref: string | null;
+  amount_cents: number;
+  currency: string;
+  created_at: string;
+  paid_at: string | null;
+}
+
 export async function entitlements(userId: string): Promise<Record<Product, boolean>> {
-  await ensureAuthTables();
-  const { rows } = await sql<{ product: string }>`
-    SELECT DISTINCT product FROM istartup_purchases
-    WHERE user_id = ${userId}::uuid AND status = 'paid';
-  `;
-  const owned = new Set(rows.map((r) => r.product));
+  const purchases = await rows<PurchaseRow>(col('purchases').where('user_id', '==', userId));
+  const owned = new Set(purchases.filter((p) => p.status === 'paid').map((p) => p.product));
   return { report: owned.has('report'), course: owned.has('course') };
 }
 
@@ -74,24 +83,31 @@ export async function recordPurchase(p: {
   paid: boolean;
 }): Promise<void> {
   const price = prices()[p.product];
-  await sql`
-    INSERT INTO istartup_purchases
-      (user_id, report_id, product, status, provider, provider_ref, amount_cents, currency, paid_at)
-    VALUES (
-      ${p.userId}::uuid, ${p.reportId}::uuid, ${p.product}, ${p.paid ? 'paid' : 'pending'},
-      ${p.provider}, ${p.providerRef}, ${price.amountCents}, ${price.currency},
-      ${p.paid ? new Date().toISOString() : null}
-    );
-  `;
+  const now = nowIso();
+  const purchase: Omit<PurchaseRow, 'id'> = {
+    user_id: p.userId,
+    report_id: p.reportId,
+    product: p.product,
+    status: p.paid ? 'paid' : 'pending',
+    provider: p.provider,
+    provider_ref: p.providerRef,
+    amount_cents: price.amountCents,
+    currency: price.currency,
+    created_at: now,
+    paid_at: p.paid ? now : null,
+  };
+  await col('purchases').doc(randomUUID()).create(purchase);
 }
 
 /** Marks a Stripe-backed purchase paid. Idempotent — the redirect and the webhook both call it. */
 export async function markPaid(providerRef: string): Promise<void> {
-  await ensureAuthTables();
-  await sql`
-    UPDATE istartup_purchases SET status = 'paid', paid_at = NOW()
-    WHERE provider_ref = ${providerRef} AND status <> 'paid';
-  `;
+  const snap = await col('purchases').where('provider_ref', '==', providerRef).get();
+  const now = nowIso();
+  await Promise.all(
+    snap.docs
+      .filter((d) => d.get('status') !== 'paid')
+      .map((d) => d.ref.update({ status: 'paid', paid_at: now })),
+  );
 }
 
 /* ─────────────────────────────── Stripe ─────────────────────────────── */

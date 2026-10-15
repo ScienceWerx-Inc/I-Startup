@@ -1,7 +1,5 @@
-import { sql } from '@vercel/postgres';
-
 import { currentAdmin, unauthorized } from '@/lib/admin-guard';
-import { ensureAuthTables, isDatabaseConfigured } from '@/lib/db';
+import { col, isDatabaseConfigured } from '@/lib/db';
 import { paymentsMode } from '@/lib/payments';
 
 export const runtime = 'nodejs';
@@ -20,6 +18,16 @@ const BREAKDOWNS = [
   { key: 'goal', label: 'Goal' },
   { key: 'country', label: 'Country (self-reported)' },
 ] as const;
+
+/** Upper bound on documents scanned per collection; aggregates are computed in memory. */
+const SCAN_LIMIT = 10_000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const countBy = (values: string[]) => {
+  const m = new Map<string, number>();
+  for (const v of values) m.set(v, (m.get(v) ?? 0) + 1);
+  return m;
+};
 
 /**
  * GET /api/admin/overview — admin-only founder/funnel/revenue aggregates, onboarding
@@ -41,54 +49,68 @@ export async function GET() {
   if (!config.database) return Response.json({ config, error: 'Database not configured.' }, { status: 503 });
 
   try {
-    await ensureAuthTables();
-
-    const [funnel, revenue, signups, ...breakdowns] = await Promise.all([
-      sql<{
-        users: number;
-        users_7d: number;
-        assessed: number;
-        reports: number;
-        anon_reports: number;
-        paid_report: number;
-        paid_course: number;
-        pending: number;
-      }>`
-        SELECT
-          (SELECT COUNT(*) FROM istartup_users)::int AS users,
-          (SELECT COUNT(*) FROM istartup_users WHERE created_at > NOW() - INTERVAL '7 days')::int AS users_7d,
-          (SELECT COUNT(DISTINCT user_id) FROM istartup_reports WHERE user_id IS NOT NULL)::int AS assessed,
-          (SELECT COUNT(*) FROM istartup_reports)::int AS reports,
-          (SELECT COUNT(*) FROM istartup_reports WHERE user_id IS NULL)::int AS anon_reports,
-          (SELECT COUNT(DISTINCT user_id) FROM istartup_purchases WHERE status = 'paid' AND product = 'report')::int AS paid_report,
-          (SELECT COUNT(DISTINCT user_id) FROM istartup_purchases WHERE status = 'paid' AND product = 'course')::int AS paid_course,
-          (SELECT COUNT(*) FROM istartup_purchases WHERE status = 'pending')::int AS pending;
-      `,
-      sql<{ product: string; currency: string; provider: string; count: number; cents: number }>`
-        SELECT product, currency, provider, COUNT(*)::int AS count, COALESCE(SUM(amount_cents), 0)::int AS cents
-        FROM istartup_purchases WHERE status = 'paid'
-        GROUP BY product, currency, provider;
-      `,
-      sql<{ day: string; count: number }>`
-        SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
-        FROM istartup_users WHERE created_at > NOW() - INTERVAL '30 days'
-        GROUP BY 1 ORDER BY 1;
-      `,
-      ...BREAKDOWNS.map(
-        (b) => sql<{ label: string; count: number }>`
-          SELECT COALESCE(NULLIF(TRIM(onboarding->>${b.key}), ''), 'Not answered') AS label, COUNT(*)::int AS count
-          FROM istartup_users GROUP BY 1 ORDER BY 2 DESC LIMIT 10;
-        `,
-      ),
+    const [userSnap, reportSnap, purchaseSnap] = await Promise.all([
+      col('users').select('created_at', 'onboarding').limit(SCAN_LIMIT).get(),
+      col('reports').select('user_id').limit(SCAN_LIMIT).get(),
+      col('purchases')
+        .select('user_id', 'product', 'status', 'provider', 'currency', 'amount_cents')
+        .limit(SCAN_LIMIT)
+        .get(),
     ]);
+    const users = userSnap.docs.map((d) => d.data() as { created_at: string; onboarding?: Record<string, unknown> });
+    const reports = reportSnap.docs.map((d) => d.data() as { user_id: string | null });
+    const purchases = purchaseSnap.docs.map(
+      (d) =>
+        d.data() as {
+          user_id: string;
+          product: string;
+          status: string;
+          provider: string;
+          currency: string;
+          amount_cents: number;
+        },
+    );
+    const paid = purchases.filter((p) => p.status === 'paid');
+    const paidUsers = (product: string) =>
+      new Set(paid.filter((p) => p.product === product).map((p) => p.user_id)).size;
 
-    return Response.json({
-      config,
-      funnel: funnel.rows[0],
-      revenue: revenue.rows,
-      signupsByDay: signups.rows,
-      breakdowns: BREAKDOWNS.map((b, i) => ({ key: b.key, label: b.label, rows: breakdowns[i].rows })),
+    const now = Date.now();
+    const since = (days: number) => new Date(now - days * DAY_MS).toISOString();
+
+    const funnel = {
+      users: users.length,
+      users_7d: users.filter((u) => u.created_at > since(7)).length,
+      assessed: new Set(reports.map((r) => r.user_id).filter(Boolean)).size,
+      reports: reports.length,
+      anon_reports: reports.filter((r) => !r.user_id).length,
+      paid_report: paidUsers('report'),
+      paid_course: paidUsers('course'),
+      pending: purchases.filter((p) => p.status === 'pending').length,
+    };
+
+    const revenueGroups = new Map<string, { product: string; currency: string; provider: string; count: number; cents: number }>();
+    for (const p of paid) {
+      const key = `${p.product}|${p.currency}|${p.provider}`;
+      const g = revenueGroups.get(key) ?? { product: p.product, currency: p.currency, provider: p.provider, count: 0, cents: 0 };
+      g.count += 1;
+      g.cents += p.amount_cents ?? 0;
+      revenueGroups.set(key, g);
+    }
+
+    const signupsByDay = [...countBy(users.filter((u) => u.created_at > since(30)).map((u) => u.created_at.slice(0, 10)))]
+      .map(([day, count]) => ({ day, count }))
+      .sort((a, b) => (a.day < b.day ? -1 : 1));
+
+    const breakdowns = BREAKDOWNS.map((b) => {
+      const labels = users.map((u) => String(u.onboarding?.[b.key] ?? '').trim() || 'Not answered');
+      const rows = [...countBy(labels)]
+        .map(([label, count]) => ({ label, count }))
+        .sort((x, y) => y.count - x.count)
+        .slice(0, 10);
+      return { key: b.key, label: b.label, rows };
     });
+
+    return Response.json({ config, funnel, revenue: [...revenueGroups.values()], signupsByDay, breakdowns });
   } catch (error) {
     console.error('Failed to compute admin overview:', error);
     return Response.json({ config, error: 'Failed to compute overview.' }, { status: 500 });

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { ADMIN_COOKIE, adminSecret, verifySession } from '@/lib/admin-auth';
+import { ADMIN_COOKIE } from '@/lib/admin-auth';
+import { verifyAdminCookie } from '@/lib/admin-guard';
 import { USER_COOKIE, verifyUserSession } from '@/lib/user-auth';
 
 /**
@@ -24,10 +25,7 @@ export async function proxy(request: NextRequest) {
   if (pathname === '/admin/login' || pathname.startsWith('/admin/login/')) {
     return NextResponse.next();
   }
-  const user = await verifySession(
-    request.cookies.get(ADMIN_COOKIE)?.value,
-    adminSecret(),
-  );
+  const user = await verifyAdminCookie(request.cookies.get(ADMIN_COOKIE)?.value);
   if (user) return NextResponse.next();
   const url = request.nextUrl.clone();
   url.pathname = '/admin/login';

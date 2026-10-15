@@ -1,8 +1,6 @@
-import { cookies } from 'next/headers';
-import { sql } from '@vercel/postgres';
-import { ADMIN_COOKIE, adminSecret, verifySession } from '@/lib/admin-auth';
 import { sessionUserId } from '@/lib/account';
-import { ensureAuthTables, isDatabaseConfigured } from '@/lib/db';
+import { currentAdmin, unauthorized } from '@/lib/admin-guard';
+import { col, isDatabaseConfigured, isId } from '@/lib/db';
 import type { ReportRow } from '@/lib/reports';
 
 export const runtime = 'nodejs';
@@ -15,32 +13,27 @@ export async function GET(
 ) {
   if (!isDatabaseConfigured()) {
     return Response.json(
-      { error: 'Database not configured. Set POSTGRES_URL in Vercel Storage.' },
+      { error: 'Database not configured.' },
       { status: 503 },
     );
   }
 
-  const store = await cookies();
-  const admin = await verifySession(store.get(ADMIN_COOKIE)?.value, adminSecret());
+  const admin = await currentAdmin();
   const userId = admin ? null : await sessionUserId();
   if (!admin && !userId) return Response.json({ error: 'Unauthorized.' }, { status: 401 });
 
   const { id } = await params;
   if (!id) return Response.json({ error: 'Missing id.' }, { status: 400 });
+  if (!isId(id)) return Response.json({ error: 'Report not found.' }, { status: 404 });
 
   try {
-    await ensureAuthTables();
-    const { rows } = await sql<ReportRow & { user_id: string | null }>`
-      SELECT id, user_id, app_id, startup_name, profile, company_info, answers, scores, final_score, band, country, region, city, created_at
-      FROM istartup_reports
-      WHERE id = ${id}::uuid
-      LIMIT 1;
-    `;
+    const snap = await col('reports').doc(id).get();
+    const report = snap.exists ? ({ id: snap.id, ...snap.data() } as ReportRow) : null;
     // Someone else's report reads as missing, not forbidden.
-    if (rows.length === 0 || (!admin && rows[0].user_id !== userId)) {
+    if (!report || (!admin && report.user_id !== userId)) {
       return Response.json({ error: 'Report not found.' }, { status: 404 });
     }
-    return Response.json({ report: rows[0] });
+    return Response.json({ report });
   } catch (error) {
     console.error('Failed to fetch iSTARTUP report:', error);
     return Response.json({ error: 'Failed to fetch report.' }, { status: 500 });
@@ -52,9 +45,7 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const store = await cookies();
-  const user = await verifySession(store.get(ADMIN_COOKIE)?.value, adminSecret());
-  if (!user) return Response.json({ error: 'Unauthorized.' }, { status: 401 });
+  if (!(await currentAdmin())) return unauthorized();
 
   if (!isDatabaseConfigured()) {
     return Response.json({ error: 'Database not configured.' }, { status: 503 });
@@ -62,12 +53,12 @@ export async function DELETE(
 
   const { id } = await params;
   if (!id) return Response.json({ error: 'Missing id.' }, { status: 400 });
+  if (!isId(id)) return Response.json({ error: 'Report not found.' }, { status: 404 });
 
   try {
-    const { rowCount } = await sql`
-      DELETE FROM istartup_reports WHERE id = ${id}::uuid;
-    `;
-    if (rowCount === 0) return Response.json({ error: 'Report not found.' }, { status: 404 });
+    const ref = col('reports').doc(id);
+    if (!(await ref.get()).exists) return Response.json({ error: 'Report not found.' }, { status: 404 });
+    await ref.delete();
     return Response.json({ ok: true });
   } catch (error) {
     console.error('Failed to delete iSTARTUP report:', error);

@@ -1,12 +1,6 @@
 import { z } from 'zod';
-import {
-  ADMIN_COOKIE,
-  SESSION_MAX_AGE_S,
-  adminSecret,
-  isAdminConfigured,
-  safeEqual,
-  signSession,
-} from '@/lib/admin-auth';
+import { ADMIN_COOKIE, SESSION_MAX_AGE_S, signSession } from '@/lib/admin-auth';
+import { adminSecret, authenticateAdmin } from '@/lib/admin-guard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,14 +15,8 @@ function cookieHeader(value: string, maxAge: number): string {
   return `${ADMIN_COOKIE}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
 }
 
-/** POST /api/admin/login — verifies ADMIN_USERNAME/PASSWORD, sets session cookie. */
+/** POST /api/admin/login — verifies an admin account (env or Firestore), sets session cookie. */
 export async function POST(request: Request) {
-  if (!isAdminConfigured()) {
-    return Response.json(
-      { error: 'Admin credentials not configured. Set ADMIN_USERNAME / ADMIN_PASSWORD.' },
-      { status: 503 },
-    );
-  }
   let body: unknown;
   try {
     body = await request.json();
@@ -40,14 +28,18 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Username and password required.' }, { status: 400 });
   }
 
-  const ok =
-    safeEqual(parsed.data.username, process.env.ADMIN_USERNAME ?? '') &&
-    safeEqual(parsed.data.password, process.env.ADMIN_PASSWORD ?? '');
-  if (!ok) {
+  let username: string | null;
+  try {
+    username = await authenticateAdmin(parsed.data.username, parsed.data.password);
+  } catch (error) {
+    console.error('Admin login failed:', error);
+    return Response.json({ error: 'Could not sign you in. Please try again.' }, { status: 500 });
+  }
+  if (!username) {
     return Response.json({ error: 'Invalid credentials.' }, { status: 401 });
   }
 
-  const token = await signSession(parsed.data.username, adminSecret());
+  const token = await signSession(username, await adminSecret());
   return Response.json(
     { ok: true },
     { headers: { 'Set-Cookie': cookieHeader(token, SESSION_MAX_AGE_S) } },

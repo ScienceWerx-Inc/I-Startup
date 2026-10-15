@@ -818,7 +818,7 @@ function SystemTab() {
         <PanelHead
           icon={Database}
           title="Database"
-          sub="POSTGRES_URL connectivity and the istartup_reports table."
+          sub="Firestore connectivity and the istartup_reports collection."
           action={<ReloadButton onClick={db.reload} loading={db.loading} />}
         />
         <ErrorNote error={db.error} />
@@ -826,7 +826,7 @@ function SystemTab() {
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Tile label="Configured" value={String(db.data.configured)} />
             <Tile label="Connected" value={String(db.data.connected ?? '—')} />
-            <Tile label="Reports table" value={String(db.data.tableExists ?? '—')} />
+            <Tile label="Has reports" value={String(db.data.tableExists ?? '—')} />
             <Tile label="Report rows" value={String(db.data.count ?? '—')} />
           </div>
         ) : null}
@@ -838,7 +838,7 @@ function SystemTab() {
         {c ? (
           <ul className="mt-4 divide-y divide-line">
             {[
-              { ok: c.authSecret, name: 'AUTH_SECRET', note: c.authSecret ? 'Founder sessions use their own key.' : 'Not set: sessions fall back to the admin password. Set a random value.' },
+              { ok: c.authSecret, name: 'AUTH_SECRET', note: c.authSecret ? 'Founder sessions use their own key.' : 'Not set: sessions use keys generated once and stored in Firestore.' },
               {
                 ok: c.payments === 'stripe',
                 name: 'Payments mode',

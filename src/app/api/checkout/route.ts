@@ -1,7 +1,7 @@
-import { sql } from '@vercel/postgres';
 import { z } from 'zod';
 
 import { currentUser } from '@/lib/account';
+import { col } from '@/lib/db';
 import {
   PRODUCTS,
   createStripeCheckout,
@@ -49,11 +49,8 @@ export async function POST(request: Request) {
     // Only attach a report the user actually owns.
     let reportId: string | null = null;
     if (parsed.data.reportId) {
-      const { rows } = await sql`
-        SELECT id FROM istartup_reports
-        WHERE id = ${parsed.data.reportId}::uuid AND user_id = ${user.id}::uuid LIMIT 1;
-      `;
-      reportId = rows[0]?.id ?? null;
+      const report = await col('reports').doc(parsed.data.reportId).get();
+      reportId = report.exists && report.get('user_id') === user.id ? report.id : null;
     }
 
     if (mode === 'mock') {

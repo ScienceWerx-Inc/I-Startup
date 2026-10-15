@@ -1,7 +1,6 @@
 import { cookies } from 'next/headers';
-import { sql } from '@vercel/postgres';
 
-import { ensureAuthTables } from '@/lib/db';
+import { col } from '@/lib/db';
 import { USER_COOKIE, verifyUserSession } from '@/lib/user-auth';
 import type { OnboardingAnswers } from '@/modules/istartup-score/onboarding/fields';
 
@@ -13,7 +12,11 @@ export interface UserRow {
   full_name: string;
   onboarding: OnboardingAnswers;
   created_at: string;
+  last_login_at?: string | null;
 }
+
+/** A user document as stored, including the password hash (never send this to a client). */
+export type StoredUser = Omit<UserRow, 'id'> & { password_hash: string };
 
 export interface PublicUser {
   id: string;
@@ -41,10 +44,12 @@ export async function sessionUserId(): Promise<string | null> {
 export async function currentUser(): Promise<UserRow | null> {
   const id = await sessionUserId();
   if (!id) return null;
-  await ensureAuthTables();
-  const { rows } = await sql<UserRow>`
-    SELECT id, email, full_name, onboarding, created_at
-    FROM istartup_users WHERE id = ${id}::uuid LIMIT 1;
-  `;
-  return rows[0] ?? null;
+  return getUser(id);
+}
+
+export async function getUser(id: string): Promise<UserRow | null> {
+  const snap = await col('users').doc(id).get();
+  if (!snap.exists) return null;
+  const { password_hash: _hash, ...user } = snap.data() as StoredUser;
+  return { id: snap.id, ...user };
 }

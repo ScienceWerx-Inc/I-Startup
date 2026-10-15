@@ -1,8 +1,8 @@
-import { sql } from '@vercel/postgres';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
-import { normalizeEmail, toPublicUser, type UserRow } from '@/lib/account';
-import { ensureAuthTables, isDatabaseConfigured } from '@/lib/db';
+import { normalizeEmail, toPublicUser, type StoredUser } from '@/lib/account';
+import { col, db, emailKey, isAlreadyExists, isDatabaseConfigured, nowIso } from '@/lib/db';
 import { hashPassword } from '@/lib/passwords';
 import { signUserSession, userCookieHeader } from '@/lib/user-auth';
 import { OnboardingSchema } from '@/modules/istartup-score/onboarding/fields';
@@ -43,23 +43,32 @@ export async function POST(request: Request) {
   const email = normalizeEmail(parsed.data.email);
 
   try {
-    await ensureAuthTables();
-    const passwordHash = await hashPassword(password);
-    const { rows } = await sql<UserRow>`
-      INSERT INTO istartup_users (email, password_hash, full_name, onboarding, last_login_at)
-      VALUES (${email}, ${passwordHash}, ${fullName}, ${JSON.stringify(onboarding)}::jsonb, NOW())
-      ON CONFLICT (email) DO NOTHING
-      RETURNING id, email, full_name, onboarding, created_at;
-    `;
-    if (rows.length === 0) {
+    const id = randomUUID();
+    const now = nowIso();
+    const user: StoredUser = {
+      email,
+      password_hash: await hashPassword(password),
+      full_name: fullName,
+      onboarding,
+      created_at: now,
+      last_login_at: now,
+    };
+    // The email doc is the uniqueness guard: `create` fails the whole batch if it exists.
+    const batch = db().batch();
+    batch.create(col('userEmails').doc(emailKey(email)), { user_id: id });
+    batch.create(col('users').doc(id), user);
+    try {
+      await batch.commit();
+    } catch (error) {
+      if (!isAlreadyExists(error)) throw error;
       return Response.json(
         { error: 'An account with this email already exists. Sign in instead.', code: 'email_taken' },
         { status: 409 },
       );
     }
-    const token = await signUserSession(rows[0].id);
+    const token = await signUserSession(id);
     return Response.json(
-      { user: toPublicUser(rows[0]) },
+      { user: toPublicUser({ id, ...user }) },
       { status: 201, headers: { 'Set-Cookie': userCookieHeader(token) } },
     );
   } catch (error) {

@@ -1,8 +1,7 @@
-import { sql } from '@vercel/postgres';
 import { z } from 'zod';
 
-import { currentUser, toPublicUser, type UserRow } from '@/lib/account';
-import { isDatabaseConfigured } from '@/lib/db';
+import { currentUser, getUser, toPublicUser } from '@/lib/account';
+import { col, isDatabaseConfigured } from '@/lib/db';
 import { entitlements, paymentsMode, prices } from '@/lib/payments';
 import { OnboardingSchema } from '@/modules/istartup-score/onboarding/fields';
 
@@ -42,12 +41,10 @@ export async function PATCH(request: Request) {
   if (!parsed.success) return Response.json({ error: 'Invalid onboarding answers.' }, { status: 400 });
 
   try {
-    const { rows } = await sql<UserRow>`
-      UPDATE istartup_users SET onboarding = ${JSON.stringify(parsed.data.onboarding)}::jsonb
-      WHERE id = ${user.id}::uuid
-      RETURNING id, email, full_name, onboarding, created_at;
-    `;
-    return Response.json({ user: toPublicUser(rows[0]) });
+    await col('users').doc(user.id).update({ onboarding: parsed.data.onboarding });
+    const updated = await getUser(user.id);
+    if (!updated) return Response.json({ error: 'Sign in first.' }, { status: 401 });
+    return Response.json({ user: toPublicUser(updated) });
   } catch (error) {
     console.error('Failed to update onboarding:', error);
     return Response.json({ error: 'Failed to save your answers.' }, { status: 500 });

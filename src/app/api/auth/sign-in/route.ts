@@ -1,8 +1,7 @@
-import { sql } from '@vercel/postgres';
 import { z } from 'zod';
 
-import { normalizeEmail, toPublicUser, type UserRow } from '@/lib/account';
-import { ensureAuthTables, isDatabaseConfigured } from '@/lib/db';
+import { normalizeEmail, toPublicUser, type StoredUser } from '@/lib/account';
+import { col, isDatabaseConfigured, nowIso } from '@/lib/db';
 import { DUMMY_HASH, verifyPassword } from '@/lib/passwords';
 import { signUserSession, userCookieHeader } from '@/lib/user-auth';
 
@@ -31,18 +30,19 @@ export async function POST(request: Request) {
   }
 
   try {
-    await ensureAuthTables();
-    const { rows } = await sql<UserRow & { password_hash: string }>`
-      SELECT id, email, full_name, onboarding, created_at, password_hash
-      FROM istartup_users WHERE email = ${normalizeEmail(parsed.data.email)} LIMIT 1;
-    `;
-    const user = rows[0];
+    const snap = await col('users')
+      .where('email', '==', normalizeEmail(parsed.data.email))
+      .limit(1)
+      .get();
+    const doc = snap.docs[0];
+    const stored = doc?.data() as StoredUser | undefined;
     // Hash even when the email is unknown so response time doesn't reveal which emails exist.
-    const ok = await verifyPassword(parsed.data.password, user?.password_hash ?? DUMMY_HASH);
-    if (!user || !ok) {
+    const ok = await verifyPassword(parsed.data.password, stored?.password_hash ?? DUMMY_HASH);
+    if (!doc || !stored || !ok) {
       return Response.json({ error: 'Incorrect email or password.' }, { status: 401 });
     }
-    await sql`UPDATE istartup_users SET last_login_at = NOW() WHERE id = ${user.id}::uuid;`;
+    await doc.ref.update({ last_login_at: nowIso() });
+    const user = { id: doc.id, ...stored };
     const token = await signUserSession(user.id);
     return Response.json(
       { user: toPublicUser(user) },

@@ -1,7 +1,5 @@
-import { cookies } from 'next/headers';
-import { sql } from '@vercel/postgres';
-import { ADMIN_COOKIE, adminSecret, verifySession } from '@/lib/admin-auth';
-import { ensureReportsTable, isDatabaseConfigured } from '@/lib/db';
+import { currentAdmin, unauthorized } from '@/lib/admin-guard';
+import { col, isDatabaseConfigured, rows as fetchRows } from '@/lib/db';
 import type { ReportRow } from '@/lib/reports';
 
 export const runtime = 'nodejs';
@@ -13,26 +11,23 @@ interface DimTotal {
 }
 
 /**
- * GET /api/admin/stats — admin-only aggregates over istartup_reports:
+ * GET /api/admin/stats — admin-only aggregates over the istartup_reports collection:
  * totals, average score, band + country + daily distributions, per-dimension averages.
  */
 export async function GET() {
-  const store = await cookies();
-  const user = await verifySession(store.get(ADMIN_COOKIE)?.value, adminSecret());
-  if (!user) return Response.json({ error: 'Unauthorized.' }, { status: 401 });
+  if (!(await currentAdmin())) return unauthorized();
 
   if (!isDatabaseConfigured()) {
     return Response.json({ error: 'Database not configured.' }, { status: 503 });
   }
 
   try {
-    await ensureReportsTable();
-    const { rows } = await sql<ReportRow>`
-      SELECT final_score, band, country, region, city, scores, created_at
-      FROM istartup_reports
-      ORDER BY created_at DESC
-      LIMIT 2000;
-    `;
+    const rows = await fetchRows<ReportRow>(
+      col('reports')
+        .orderBy('created_at', 'desc')
+        .limit(2000)
+        .select('final_score', 'band', 'country', 'region', 'city', 'scores', 'created_at'),
+    );
 
     const byBand: Record<string, number> = {};
     const byCountry: Record<string, number> = {};

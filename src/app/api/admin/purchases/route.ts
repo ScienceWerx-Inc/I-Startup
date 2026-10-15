@@ -1,7 +1,7 @@
-import { sql } from '@vercel/postgres';
-
+import type { UserRow } from '@/lib/account';
 import { currentAdmin, unauthorized } from '@/lib/admin-guard';
-import { ensureAuthTables, isDatabaseConfigured } from '@/lib/db';
+import { byIds, col, isDatabaseConfigured, rows } from '@/lib/db';
+import type { PurchaseRow } from '@/lib/payments';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,16 +12,16 @@ export async function GET() {
   if (!isDatabaseConfigured()) return Response.json({ error: 'Database not configured.' }, { status: 503 });
 
   try {
-    await ensureAuthTables();
-    const { rows } = await sql`
-      SELECT p.id, p.user_id, p.report_id, p.product, p.status, p.provider, p.provider_ref,
-             p.amount_cents, p.currency, p.created_at, p.paid_at, u.email, u.full_name
-      FROM istartup_purchases p
-      JOIN istartup_users u ON u.id = p.user_id
-      ORDER BY p.created_at DESC
-      LIMIT 1000;
-    `;
-    return Response.json({ purchases: rows });
+    const purchases = await rows<PurchaseRow>(col('purchases').orderBy('created_at', 'desc').limit(1000));
+    const users = await byIds<UserRow>('users', purchases.map((p) => p.user_id));
+    return Response.json({
+      purchases: purchases
+        .filter((p) => users.has(p.user_id))
+        .map((p) => {
+          const u = users.get(p.user_id)!;
+          return { ...p, email: u.email, full_name: u.full_name };
+        }),
+    });
   } catch (error) {
     console.error('Failed to list purchases:', error);
     return Response.json({ error: 'Failed to list purchases.' }, { status: 500 });

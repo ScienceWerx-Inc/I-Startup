@@ -1,14 +1,12 @@
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
-import { ADMIN_COOKIE, adminSecret, verifySession } from '@/lib/admin-auth';
+import { currentAdmin } from '@/lib/admin-guard';
 import { Eyebrow, SiteHeader } from '@/modules/istartup-score/components/chrome';
 import { AdminDashboard } from './dashboard';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminPage() {
-  const store = await cookies();
-  const user = await verifySession(store.get(ADMIN_COOKIE)?.value, adminSecret());
+  const user = await currentAdmin();
   if (!user) redirect('/admin/login?next=/admin');
 
   return (

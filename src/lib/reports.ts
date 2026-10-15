@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Shared shape for an iSTARTUP report row in Vercel Postgres.
+ * Shared shape for an iSTARTUP report document in Firestore (`istartup_reports`).
  * Everything the assessment produces is stored — profile, answers,
  * per-dimension scores, final score + band — so the report can be
  * re-rendered later without recomputation.
@@ -22,7 +22,7 @@ export const ReportPayloadSchema = z.object({
 
 export type ReportPayload = z.infer<typeof ReportPayloadSchema>;
 
-/** Approximate location from Vercel IP geolocation headers (country/region/city). */
+/** Approximate location from IP geolocation headers (country/region/city). */
 export const GeoSchema = z.object({
   country: z.string().max(4).nullish(),
   region: z.string().max(120).nullish(),
@@ -33,6 +33,7 @@ export type Geo = z.infer<typeof GeoSchema>;
 
 export interface ReportRow {
   id: string;
+  user_id: string | null;
   app_id: string | null;
   startup_name: string;
   profile: unknown;

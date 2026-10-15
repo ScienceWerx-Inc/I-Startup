@@ -42,18 +42,6 @@ export function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-export function adminSecret(): string {
-  return (
-    process.env.ADMIN_SESSION_SECRET ||
-    process.env.ADMIN_PASSWORD ||
-    'dev-only-secret'
-  );
-}
-
-export function isAdminConfigured(): boolean {
-  return Boolean(process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD);
-}
-
 export async function signSession(
   username: string,
   secret: string,

@@ -8,7 +8,7 @@ import { Menu, X } from 'lucide-react';
 import { useAccount } from '@/hooks/use-account';
 import { cn } from '@/lib/utils';
 import { Wordmark } from '../../chrome';
-import { ASSESSMENT_HREF, MY_ASSESSMENT_HREF, SIGN_IN_HREF, useTiming, wrap } from './primitives';
+import { ASSESSMENT_HREF, MY_ASSESSMENT_HREF, MY_COURSES_HREF, SIGN_IN_HREF, useTiming, wrap } from './primitives';
 
 export const NAV_LINKS = [
   { label: 'How It Works', href: '#how-it-works' },
@@ -23,7 +23,7 @@ export const NAV_LINKS = [
  * "Get started" button is dropped, and the page can put its own status in `right`.
  *
  * Account-aware, like the rest of the app: signed out, "Sign In" and "Get Started" (the
- * onboarding, where accounts are created); signed in, "My Assessment" and "Sign Out".
+ * onboarding, where accounts are created); signed in, "My Assessment", "My Courses" and "Sign Out".
  */
 export function SiteNav({ variant = 'landing', right }: { variant?: 'landing' | 'page'; right?: ReactNode }) {
   const onLanding = variant === 'landing';
@@ -107,6 +107,9 @@ export function SiteNav({ variant = 'landing', right }: { variant?: 'landing' | 
                   My Assessment
                 </Link>
               )}
+              <Link href={MY_COURSES_HREF} className="hidden rounded-md px-3 py-2 text-[14px] font-medium text-mut transition-colors duration-200 hover:text-ink sm:block">
+                My Courses
+              </Link>
               <span className="hidden max-w-[140px] truncate text-[14px] text-ink sm:block" title={user.email}>
                 {firstName}
               </span>
@@ -185,6 +188,9 @@ export function SiteNav({ variant = 'landing', right }: { variant?: 'landing' | 
                       >
                         Sign Out
                       </button>
+                      <Link href={MY_COURSES_HREF} className="flex h-12 items-center justify-center rounded-btn border border-line-strong text-[15px] font-semibold text-ink">
+                        My Courses
+                      </Link>
                       {onLanding && (
                         <Link href={MY_ASSESSMENT_HREF} className="flex h-12 items-center justify-center bi-btn-primary rounded-btn text-[15px] font-semibold">
                           My Assessment

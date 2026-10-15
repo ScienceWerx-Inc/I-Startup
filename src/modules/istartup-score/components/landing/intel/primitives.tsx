@@ -24,6 +24,7 @@ export const VIEW = { once: true, margin: '0px 0px -12% 0px' } as const;
 export const ASSESSMENT_HREF = '/start';
 /** Where a signed-in founder's assessment lives. */
 export const MY_ASSESSMENT_HREF = '/interview';
+export const MY_COURSES_HREF = '/learn';
 export const SIGN_IN_HREF = '/sign-in';
 /** Reviewers read archived reports behind the admin sign-in. */
 export const REVIEWER_HREF = '/admin/login';

@@ -6,14 +6,15 @@ import { USER_COOKIE, verifyUserSession } from '@/lib/user-auth';
 
 /**
  * Protects /admin pages (except /admin/login) via the signed admin cookie, and the
- * assessment (/interview) via the founder session — signed-out visitors go through the
+ * assessment (/interview) and courses (/learn) via the founder session — signed-out visitors go through the
  * "Submit an idea" onboarding, which is where accounts are created.
  * API auth is enforced inside each route handler.
  */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname === '/interview' || pathname.startsWith('/interview/')) {
+  const founderOnly = ['/interview', '/learn'].some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  if (founderOnly) {
     const userId = await verifyUserSession(request.cookies.get(USER_COOKIE)?.value);
     if (userId) return NextResponse.next();
     const url = request.nextUrl.clone();
@@ -34,5 +35,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/interview/:path*'],
+  matcher: ['/admin/:path*', '/interview/:path*', '/learn/:path*'],
 };

@@ -137,6 +137,19 @@ interface Purchase {
   full_name?: string;
 }
 
+interface CourseCard {
+  courseId: string;
+  title: string;
+  status: 'outlining' | 'writing' | 'publishing' | 'ready' | 'error';
+  score: number;
+  modules: string[];
+  lessonsTotal: number;
+  lessonsWritten: number;
+  percent: number;
+  certificateId: string | null;
+  createdAt: string;
+}
+
 interface DbTest {
   configured: boolean;
   connected?: boolean;
@@ -455,6 +468,7 @@ function FounderDetail({ id }: { id: string }) {
     user: Omit<FounderRow, 'report_count' | 'latest_score' | 'products' | 'paid_cents'>;
     reports: ReportSummary[];
     purchases: Purchase[];
+    courses: CourseCard[];
   }>(`/api/admin/users/${id}`);
 
   const back = (
@@ -465,7 +479,7 @@ function FounderDetail({ id }: { id: string }) {
   if (error) return <div className="space-y-4">{back}<ErrorNote error={error} /></div>;
   if (!data) return <div className="space-y-4">{back}<p className="text-sm text-mut">{loading ? 'Loading…' : '—'}</p></div>;
 
-  const { user, reports, purchases } = data;
+  const { user, reports, purchases, courses = [] } = data;
   const paid = purchases.filter((p) => p.status === 'paid');
   const known = new Set<string>(ONBOARDING_LABELS.map((l) => l.key));
   const extra = Object.entries(user.onboarding ?? {}).filter(([k]) => !known.has(k));
@@ -515,6 +529,38 @@ function FounderDetail({ id }: { id: string }) {
           <p className="mt-3 text-sm text-mut">No assessment submitted yet.</p>
         ) : (
           <ReportsTable rows={reports} showFounder={false} />
+        )}
+      </Panel>
+
+      <Panel>
+        <h3 className="text-lg font-semibold text-ink">Gap-closing courses</h3>
+        {courses.length === 0 ? (
+          <p className="mt-3 text-sm text-mut">No course generated yet.</p>
+        ) : (
+          <ul className="mt-4 divide-y divide-line">
+            {courses.map((c) => (
+              <li key={c.courseId} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-ink">{c.title}</p>
+                  <p className="mt-0.5 text-xs text-mut">
+                    From a {c.score}/500 report · {date(c.createdAt)} · {c.modules.join(', ')}
+                  </p>
+                </div>
+                <div className="shrink-0 text-right text-sm">
+                  {c.status === 'ready' ? (
+                    <>
+                      <p className="font-mono font-semibold text-ink">{c.percent}% complete</p>
+                      <p className="text-xs text-mut">{c.certificateId ? `01 Certified · ${c.certificateId}` : `${c.lessonsTotal} lessons`}</p>
+                    </>
+                  ) : (
+                    <p className={cn('text-xs', c.status === 'error' ? 'text-risk' : 'text-mut')}>
+                      {c.status === 'error' ? 'Generation failed' : `Generating · ${c.lessonsWritten}/${c.lessonsTotal || '?'} lessons`}
+                    </p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
       </Panel>
 

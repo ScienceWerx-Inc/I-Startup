@@ -12,6 +12,7 @@ import { priorityActions, type IStartupReport } from "../assessment/scoring";
 import type { ReportScreenProps } from "../components/assessment-shell";
 import { SiteNav } from "../components/landing/intel/site-nav";
 import { CourseOffer, UnlockCard } from "../components/paywall";
+import { CourseBuilder } from "@/modules/gap-course/course-builder";
 import { ReportView } from "../components/report-view";
 import { profileFromOnboarding } from "../onboarding/fields";
 
@@ -37,15 +38,23 @@ interface Gate {
     user: AccountUser;
     buying: "report" | "course" | null;
     checkout: (product: "report" | "course") => void;
+    /** The saved report's id; null until saved, or when the report was restored from a draft. */
+    reportId: string | null;
 }
 
 const GateContext = createContext<Gate | null>(null);
 
-/** The report as the shell shows it: score always, analysis behind the paywall, course offer below. */
+const noop = () => {};
+
+/**
+ * The report as the shell shows it: score always, analysis behind the paywall, and below
+ * it the gap-closing course — built the moment the report is saved when the founder has
+ * course access (everyone while payments are off), otherwise offered for purchase.
+ */
 function GatedReport({ report, onEdit, onRestart }: ReportScreenProps) {
     const gate = useContext(GateContext);
     if (!gate) return null;
-    const { account, user, buying, checkout } = gate;
+    const { account, user, buying, checkout, reportId } = gate;
     const testMode = account.payments === "mock";
     const actionCount = priorityActions(report).length;
     return (
@@ -66,6 +75,9 @@ function GatedReport({ report, onEdit, onRestart }: ReportScreenProps) {
                 />
             }
             extra={
+                account.access.course ? (
+                    <CourseBuilder reportId={reportId} onReady={noop} />
+                ) : (
                 <CourseOffer
                     price={account.prices.course}
                     owned={account.access.course}
@@ -75,6 +87,7 @@ function GatedReport({ report, onEdit, onRestart }: ReportScreenProps) {
                     testMode={testMode}
                     onEnroll={() => checkout("course")}
                 />
+                )
             }
         />
     );
@@ -136,7 +149,7 @@ function IstartupInterviewPageComponent() {
     const onboarding = user?.onboarding;
     const initialProfile = useMemo(() => profileFromOnboarding(onboarding), [onboarding]);
 
-    /** Archives the report in Vercel Postgres via /api/reports, linked to the signed-in founder. */
+    /** Archives the report via /api/reports, linked to the signed-in founder; its id starts the course. */
     const saveReport = useCallback(async (report: IStartupReport) => {
         try {
             const res = await fetch('/api/reports', {
@@ -182,8 +195,8 @@ function IstartupInterviewPageComponent() {
     }, [reportId]);
 
     const gate = useMemo<Gate | null>(
-        () => (account && user ? { account, user, buying, checkout } : null),
-        [account, user, buying, checkout],
+        () => (account && user ? { account, user, buying, checkout, reportId } : null),
+        [account, user, buying, checkout, reportId],
     );
 
     let body: React.ReactNode;

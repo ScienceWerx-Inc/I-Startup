@@ -74,6 +74,15 @@ export async function entitlements(userId: string): Promise<Record<Product, bool
   return { report: owned.has('report'), course: owned.has('course') };
 }
 
+/**
+ * Whether a founder may take their gap-closing course. Free while payments aren't live;
+ * once Stripe is configured it takes a paid 'course' purchase.
+ */
+export async function courseAccess(userId: string): Promise<boolean> {
+  if (paymentsMode() !== 'stripe') return true;
+  return (await entitlements(userId)).course;
+}
+
 export async function recordPurchase(p: {
   userId: string;
   reportId: string | null;

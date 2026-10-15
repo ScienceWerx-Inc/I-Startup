@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { currentUser, getUser, toPublicUser } from '@/lib/account';
 import { col, isDatabaseConfigured } from '@/lib/db';
-import { entitlements, paymentsMode, prices } from '@/lib/payments';
+import { courseAccess, entitlements, paymentsMode, prices } from '@/lib/payments';
 import { OnboardingSchema } from '@/modules/istartup-score/onboarding/fields';
 
 export const runtime = 'nodejs';
@@ -17,7 +17,8 @@ export async function GET() {
   try {
     const user = await currentUser();
     if (!user) return Response.json({ ...base, user: null, access: { report: false, course: false } });
-    return Response.json({ ...base, user: toPublicUser(user), access: await entitlements(user.id) });
+    const [owned, course] = await Promise.all([entitlements(user.id), courseAccess(user.id)]);
+    return Response.json({ ...base, user: toPublicUser(user), access: { ...owned, course } });
   } catch (error) {
     console.error('Failed to load account:', error);
     return Response.json({ error: 'Failed to load account.' }, { status: 500 });

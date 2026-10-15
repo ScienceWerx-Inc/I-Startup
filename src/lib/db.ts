@@ -23,6 +23,8 @@ export const COLLECTIONS = {
   /** `{encoded email}` → `{ email, password_hash, ... }` admin console accounts. */
   admins: 'istartup_admins',
   config: 'istartup_config',
+  /** `{reportId}` → the generation job for that report's gap-closing course. */
+  courseJobs: 'istartup_course_jobs',
 } as const;
 
 export function isDatabaseConfigured(): boolean {

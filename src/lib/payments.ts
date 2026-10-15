@@ -75,11 +75,11 @@ export async function entitlements(userId: string): Promise<Record<Product, bool
 }
 
 /**
- * Whether a founder may take their gap-closing course. Free while payments aren't live;
- * once Stripe is configured it takes a paid 'course' purchase.
+ * Whether a founder may take their gap-closing course. Free for everyone for now — even
+ * once Stripe is configured. Set `COURSE_PAYWALL=on` to require a paid 'course' purchase.
  */
 export async function courseAccess(userId: string): Promise<boolean> {
-  if (paymentsMode() !== 'stripe') return true;
+  if (process.env.COURSE_PAYWALL !== 'on') return true;
   return (await entitlements(userId)).course;
 }
 

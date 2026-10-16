@@ -52,8 +52,8 @@ export function lms(): LmsService {
     repos: lmsRepos(),
     now: () => Date.now(),
     newId: (prefix) => `${prefix}_${randomUUID().slice(0, 12)}`,
-    // 01 Certification codes: short, unguessable, easy to read aloud.
-    newCode: () => `01-${randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase()}`,
+    // 411 Certificate codes: short, unguessable, easy to read aloud.
+    newCode: () => `411-${randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase()}`,
     log: (level, message, fields) => console[level === 'info' ? 'log' : level](`[lms] ${message}`, fields ?? ''),
   });
   return service;

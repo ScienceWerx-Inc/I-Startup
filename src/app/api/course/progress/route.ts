@@ -14,7 +14,7 @@ const Schema = z.object({
 
 /**
  * POST /api/course/progress — marks a lesson complete. The lms brick checks enrollment
- * and access, counts it once, and issues the 01 Certification on the last lesson.
+ * and access, counts it once, and issues the 411 Certificate on the last lesson.
  */
 export async function POST(request: Request) {
   const user = await currentUser().catch(() => null);

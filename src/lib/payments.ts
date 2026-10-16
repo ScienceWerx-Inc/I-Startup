@@ -38,8 +38,8 @@ export function prices(): Record<Product, Price> {
       currency,
     },
     course: {
-      name: 'iSTARTUP Gap-Closing Course + 01 Certification',
-      description: 'A course built around the gaps your assessment found. Certified with the 01 Certification on completion.',
+      name: 'iSTARTUP Gap-Closing Course + 411 Certificate',
+      description: 'A course built around the gaps your assessment found. Earn the 411 Certificate on completion.',
       amountCents: cents(process.env.COURSE_PRICE_CENTS, 19900),
       currency,
     },

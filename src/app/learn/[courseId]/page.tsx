@@ -5,6 +5,7 @@ import { ArrowRight, Award, Check, Circle, Clock } from 'lucide-react';
 
 import { buttonVariants } from '@/components/ui/button';
 import { sessionUserId } from '@/lib/account';
+import { CERTIFICATE_NAME, CERTIFICATE_VALID_MONTHS, certificateExpiry, isCertificateExpired } from '@/lib/gap-course/shared';
 import { getCourseView } from '@/lib/gap-course/view';
 import { cn } from '@/lib/utils';
 import { CourseBuilder } from '@/modules/gap-course/course-builder';
@@ -113,13 +114,17 @@ export default async function CoursePage({ params }: { params: Promise<{ courseI
           <Panel className="print-exact bg-readout text-center text-readout-ink">
             <div className="relative mx-auto flex h-24 w-24 items-center justify-center rounded-full border-2 border-brand-bright/70 bg-[radial-gradient(circle_at_30%_30%,#123456,#0b1b2b)]">
               <span className="absolute inset-2 rounded-full border border-dashed border-readout-line" aria-hidden />
-              <span className="font-mono text-3xl font-semibold tracking-tight">01</span>
+              <span className="font-mono text-2xl font-semibold tracking-tight">411</span>
               <Award className="absolute -bottom-2 h-6 w-6 rounded-full bg-brand-bright p-1 text-white" aria-hidden />
             </div>
-            <p className="mt-4 text-sm font-semibold">01 Certification</p>
+            <p className="mt-4 text-sm font-semibold">{CERTIFICATE_NAME}</p>
             {certificate ? (
               <>
                 <p className="mt-1 text-[13px] text-readout-ink/70">Earned. Certificate {certificate.code}</p>
+                <p className="mt-1 text-[13px] text-readout-ink/70">
+                  {isCertificateExpired(certificate.issuedAt) ? 'Expired' : 'Valid until'}{' '}
+                  {certificateExpiry(certificate.issuedAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                </p>
                 <Link
                   href={`/learn/${courseId}/certificate`}
                   className={buttonVariants({ size: 'sm', className: 'mt-4' })}
@@ -129,7 +134,7 @@ export default async function CoursePage({ params }: { params: Promise<{ courseI
               </>
             ) : (
               <p className="mt-1 text-[13px] leading-relaxed text-readout-ink/70">
-                Complete all {lessons.length} lessons to be certified.
+                Complete all {lessons.length} lessons to be certified. Valid for {CERTIFICATE_VALID_MONTHS} months.
               </p>
             )}
           </Panel>

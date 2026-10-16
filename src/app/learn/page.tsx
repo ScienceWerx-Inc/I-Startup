@@ -23,8 +23,8 @@ export default async function LearnPage() {
       <Eyebrow>My courses</Eyebrow>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink">Close the gaps your score found</h1>
       <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-mut">
-        Each assessment builds a course around your weakest dimensions. Finish every lesson to earn the 01
-        Certification, then retake the assessment to see your score move.
+        Each assessment builds a course around your weakest dimensions. Finish every lesson to earn the 411
+        Certificate, valid for 6 months, then retake the assessment to see your score move.
       </p>
 
       {cards.length === 0 ? (

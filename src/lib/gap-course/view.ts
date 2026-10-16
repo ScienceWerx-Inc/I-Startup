@@ -12,6 +12,7 @@ import {
 } from '@/features/lms/domain';
 
 import { getJob, reportIdFor, type CourseJob } from './service';
+import { certificateExpiry } from './shared';
 
 /** Everything a course page renders, for one founder. Null when it isn't theirs. */
 export interface CourseView {
@@ -64,6 +65,7 @@ export async function listCourseCards(userId: string, jobs: CourseJob[]) {
             ])
           : [null, null];
       const lessons = (job.modules ?? []).flatMap((m) => m.lessons);
+      const certificate = enrollment?.certificateId ? await repos.certificates.get(enrollment.certificateId) : null;
       return {
         courseId: job.course_id,
         reportId: job.id,
@@ -77,6 +79,7 @@ export async function listCourseCards(userId: string, jobs: CourseJob[]) {
         lessonsWritten: lessons.filter((l) => l.status === 'done').length,
         percent: progress?.percent ?? 0,
         certificateId: enrollment?.certificateId ?? null,
+        certificateExpiresAt: certificate ? certificateExpiry(certificate.issuedAt).toISOString() : null,
         createdAt: job.created_at,
       };
     }),

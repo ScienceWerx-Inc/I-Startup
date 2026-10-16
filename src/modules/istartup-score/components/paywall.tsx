@@ -63,7 +63,7 @@ export function UnlockCard({
   );
 }
 
-/** Upsell for the gap-closing course, which ends in the 01 Certification. */
+/** Upsell for the gap-closing course, which ends in the 411 Certificate. */
 export function CourseOffer({
   price,
   owned,
@@ -115,7 +115,7 @@ export function CourseOffer({
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-good" />
               <span>
                 You&apos;re enrolled. Course access is sent to <strong className="font-semibold">{email}</strong>, and
-                your 01 Certification is issued when you complete it.
+                your 411 Certificate is issued when you complete it.
               </span>
             </p>
           ) : (
@@ -139,12 +139,12 @@ export function CourseOffer({
             className="relative flex h-28 w-28 items-center justify-center rounded-full border-2 border-brand-bright/70 bg-[radial-gradient(circle_at_30%_30%,#123456,#0b1b2b)]"
           >
             <span className="absolute inset-2 rounded-full border border-dashed border-readout-line" aria-hidden />
-            <span className="font-mono text-4xl font-semibold tracking-tight">01</span>
+            <span className="font-mono text-3xl font-semibold tracking-tight">411</span>
             <Award className="absolute -bottom-2 h-7 w-7 rounded-full bg-brand-bright p-1 text-white" aria-hidden />
           </motion.div>
-          <p className="mt-2 text-sm font-semibold">01 Certification</p>
+          <p className="mt-2 text-sm font-semibold">411 Certificate</p>
           <p className="text-[13px] leading-relaxed text-readout-ink/70">
-            Complete the course and you&apos;ll be certified with the 01 Certification.
+            Complete the course to earn the 411 Certificate, valid for 6 months.
           </p>
         </div>
       </div>

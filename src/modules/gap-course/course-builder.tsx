@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { ArrowRight, Award, Check, GraduationCap, Loader2, RotateCcw, Sparkles, TriangleAlert } from 'lucide-react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
-import type { PublicCourseJob } from '@/lib/gap-course/shared';
+import { CERTIFICATE_NAME, CERTIFICATE_VALID_MONTHS, type PublicCourseJob } from '@/lib/gap-course/shared';
 import { cn } from '@/lib/utils';
 import { Panel } from '@/modules/istartup-score/components/chrome';
 
@@ -274,11 +274,13 @@ export function CourseBuilder({ reportId, onReady }: { reportId: string | null; 
         <div className="print-exact flex flex-col items-center justify-center gap-3 bg-readout p-8 text-center text-readout-ink">
           <div className="relative flex h-24 w-24 items-center justify-center rounded-full border-2 border-brand-bright/70 bg-[radial-gradient(circle_at_30%_30%,#123456,#0b1b2b)]">
             <span className="absolute inset-2 rounded-full border border-dashed border-readout-line" aria-hidden />
-            <span className="font-mono text-3xl font-semibold tracking-tight">01</span>
+            <span className="font-mono text-2xl font-semibold tracking-tight">411</span>
             <Award className="absolute -bottom-2 h-6 w-6 rounded-full bg-brand-bright p-1 text-white" aria-hidden />
           </div>
-          <p className="mt-1 text-sm font-semibold">01 Certification</p>
-          <p className="text-[13px] leading-relaxed text-readout-ink/70">Issued when you complete every lesson.</p>
+          <p className="mt-1 text-sm font-semibold">{CERTIFICATE_NAME}</p>
+          <p className="text-[13px] leading-relaxed text-readout-ink/70">
+            Issued when you complete every lesson. Valid for {CERTIFICATE_VALID_MONTHS} months.
+          </p>
         </div>
       </div>
     </Panel>

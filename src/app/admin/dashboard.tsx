@@ -147,6 +147,7 @@ interface CourseCard {
   lessonsWritten: number;
   percent: number;
   certificateId: string | null;
+  certificateExpiresAt: string | null;
   createdAt: string;
 }
 
@@ -172,7 +173,7 @@ const ONBOARDING_LABELS = ONBOARDING_STEPS.flatMap((s) => s.fields.map((f) => ({
 const bandLabel = (code: string) => (code ? code[0].toUpperCase() + code.slice(1).replace(/_/g, ' ') : '—');
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-const PRODUCT_LABEL: Record<string, string> = { report: 'Full report', course: 'Course + 01 Cert.' };
+const PRODUCT_LABEL: Record<string, string> = { report: 'Full report', course: 'Course + 411 Cert.' };
 
 /* ─────────────────────────────── Shell ─────────────────────────────── */
 
@@ -550,7 +551,9 @@ function FounderDetail({ id }: { id: string }) {
                   {c.status === 'ready' ? (
                     <>
                       <p className="font-mono font-semibold text-ink">{c.percent}% complete</p>
-                      <p className="text-xs text-mut">{c.certificateId ? `01 Certified · ${c.certificateId}` : `${c.lessonsTotal} lessons`}</p>
+                      <p className="text-xs text-mut">{c.certificateId
+                          ? `411 Certificate ${c.certificateId}${c.certificateExpiresAt ? ` · valid until ${date(c.certificateExpiresAt)}` : ''}`
+                          : `${c.lessonsTotal} lessons`}</p>
                     </>
                   ) : (
                     <p className={cn('text-xs', c.status === 'error' ? 'text-risk' : 'text-mut')}>

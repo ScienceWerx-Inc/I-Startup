@@ -5,7 +5,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { sessionUserId } from '@/lib/account';
 import { CERTIFICATE_NAME } from '@/lib/gap-course/shared';
 import { getCourseView } from '@/lib/gap-course/view';
-import { CertificateCard } from '@/modules/gap-course/certificate-card';
+import { CertificateScroller, CourseCertificate } from '@/modules/certificates/certificate';
 import { PrintButton } from '@/modules/gap-course/lesson-actions';
 
 export const dynamic = 'force-dynamic';
@@ -36,14 +36,15 @@ export default async function CertificatePage({ params }: { params: Promise<{ co
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-5xl">
       <div className="no-print mb-4 flex items-center justify-between">
         <Link href={`/learn/${courseId}`} className="text-sm text-mut hover:text-ink">
           ← Back to the course
         </Link>
         <PrintButton />
       </div>
-      <CertificateCard
+      <CertificateScroller>
+        <CourseCertificate
         learnerName={certificate.learnerNameSnap}
         courseTitle={certificate.courseTitleSnap}
         startupName={job.plan.startup.name}
@@ -51,7 +52,8 @@ export default async function CertificatePage({ params }: { params: Promise<{ co
         code={certificate.code}
         issuedAt={certificate.issuedAt}
         revokedAt={certificate.revokedAt}
-      />
+        />
+      </CertificateScroller>
     </div>
   );
 }

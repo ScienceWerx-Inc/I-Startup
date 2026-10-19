@@ -1,4 +1,4 @@
-import { sessionUserId } from '@/lib/account';
+import { getUser, sessionUserId } from '@/lib/account';
 import { currentAdmin, unauthorized } from '@/lib/admin-guard';
 import { col, isDatabaseConfigured, isId } from '@/lib/db';
 import { getJobById } from '@/lib/gap-course/service';
@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/reports/:id — fetches one archived report (admin, or the founder who owns it).
- * Admins also get `review`: what the founder had unlocked, and the course built from it.
+ * Admins also get `review`: the founder, what they had unlocked, and the course built from it.
  */
 export async function GET(
   _request: Request,
@@ -41,13 +41,15 @@ export async function GET(
     if (!admin) return Response.json({ report });
 
     const ownerId = report.user_id;
-    const [access, job] = await Promise.all([
+    const [founder, access, job] = await Promise.all([
+      ownerId ? getUser(ownerId) : null,
       ownerId ? Promise.all([reportAccess(ownerId), courseAccess(ownerId)]).then(([r, c]) => ({ report: r, course: c })) : null,
       getJobById(report.id),
     ]);
     return Response.json({
       report,
       review: {
+        founder: founder ? { full_name: founder.full_name, email: founder.email } : null,
         access,
         course: job ? { courseId: job.course_id, status: job.status, title: job.title ?? null } : null,
       },

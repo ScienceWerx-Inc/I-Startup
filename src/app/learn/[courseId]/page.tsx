@@ -154,7 +154,10 @@ export default async function CoursePage({ params }: { params: Promise<{ courseI
                 </li>
               ))}
             </ul>
-            <Link href="/interview" className="mt-5 inline-flex items-center gap-1 text-sm font-medium text-brand">
+            <Link href={`/certificate/${job.id}`} className="mt-5 flex items-center gap-1 text-sm font-medium text-brand">
+              Readiness Certificate ({job.plan.finalScore}/500) <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+            <Link href="/interview" className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-brand">
               Retake the assessment <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </Panel>

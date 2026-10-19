@@ -893,4 +893,27 @@
   .avoid-break {
     break-inside: avoid;
   }
+
+  /* Certificates print alone on one A4 landscape sheet, edge to edge. */
+  @page certificate {
+    size: A4 landscape;
+    margin: 0;
+  }
+
+  /* Pinned to the sheet's corner, free of the page layout and the phone scroller around it. */
+  .certificate-sheet {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    width: 297mm !important;
+    height: 210mm !important;
+    box-shadow: none !important;
+  }
+
+  /* In flow, so it carries the named landscape page (a fixed box can't). */
+  .certificate-scroller {
+    page: certificate;
+    height: 0;
+    overflow: visible !important;
+  }
 }

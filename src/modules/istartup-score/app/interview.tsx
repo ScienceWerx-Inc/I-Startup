@@ -3,7 +3,11 @@
 import React, { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Award, CheckCircle2, Loader2, XCircle } from "lucide-react";
+
+import { buttonVariants } from "@/components/ui/button";
+import { CERTIFICATE_VALID_MONTHS, certificateExpiry } from "@/lib/gap-course/shared";
 
 import { useAccount, type Account, type AccountUser } from "@/hooks/use-account";
 
@@ -13,6 +17,8 @@ import type { ReportScreenProps } from "../components/assessment-shell";
 import { SiteNav } from "../components/landing/intel/site-nav";
 import { CourseOffer, UnlockCard } from "../components/paywall";
 import { CourseBuilder } from "@/modules/gap-course/course-builder";
+import { MAX_SCORE } from "../assessment/bank";
+import { Panel } from "../components/chrome";
 import { ReportView } from "../components/report-view";
 import { profileFromOnboarding } from "../onboarding/fields";
 
@@ -75,7 +81,9 @@ function GatedReport({ report, onEdit, onRestart }: ReportScreenProps) {
                 />
             }
             extra={
-                account.access.course ? (
+                <>
+                {reportId ? <CertificateReady reportId={reportId} report={report} /> : null}
+                {account.access.course ? (
                     <CourseBuilder reportId={reportId} onReady={noop} />
                 ) : (
                 <CourseOffer
@@ -87,9 +95,34 @@ function GatedReport({ report, onEdit, onRestart }: ReportScreenProps) {
                     testMode={testMode}
                     onEnroll={() => checkout("course")}
                 />
-                )
+                )}
+                </>
             }
         />
+    );
+}
+
+/** The Readiness Certificate issued with the saved report, before the course. */
+function CertificateReady({ reportId, report }: { reportId: string; report: IStartupReport }) {
+    const validUntil = certificateExpiry(Date.parse(report.generatedAt)).toLocaleDateString(undefined, { dateStyle: "long" });
+    return (
+        <Panel className="no-print mt-6 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-4">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-readout text-[#d9c08f]">
+                    <Award className="h-6 w-6" />
+                </span>
+                <div>
+                    <p className="text-lg font-semibold text-ink">Your iSTARTUP Readiness Certificate is ready</p>
+                    <p className="mt-1 text-sm text-mut">
+                        Certifies {report.profile.name || "your startup"} at {report.finalScore} / {MAX_SCORE} ({report.band.label}).
+                        Valid for {CERTIFICATE_VALID_MONTHS} months, until {validUntil}.
+                    </p>
+                </div>
+            </div>
+            <Link href={`/certificate/${reportId}`} className={buttonVariants({ className: "shrink-0" })}>
+                View certificate <ArrowRight className="h-4 w-4" />
+            </Link>
+        </Panel>
     );
 }
 

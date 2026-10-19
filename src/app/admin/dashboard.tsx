@@ -26,10 +26,15 @@ import type { LessonCheckpoint } from '@/features/lms/domain';
 import type { GapPlan } from '@/lib/gap-course/plan';
 import { CERTIFICATE_NAME } from '@/lib/gap-course/shared';
 import { cn } from '@/lib/utils';
-import { CertificateCard } from '@/modules/gap-course/certificate-card';
+import {
+  CertificateScroller,
+  CourseCertificate,
+  SCORE_CERTIFICATE_NAME,
+  ScoreCertificate,
+} from '@/modules/certificates/certificate';
 import { LessonBody } from '@/modules/gap-course/lesson-body';
 import { QUESTIONS, type StartupProfile } from '@/modules/istartup-score/assessment/bank';
-import { computeReport } from '@/modules/istartup-score/assessment/scoring';
+import { bandFor, computeReport } from '@/modules/istartup-score/assessment/scoring';
 import { Panel } from '@/modules/istartup-score/components/chrome';
 import { ReportView } from '@/modules/istartup-score/components/report-view';
 import { ONBOARDING_STEPS, type OnboardingAnswers } from '@/modules/istartup-score/onboarding/fields';
@@ -137,6 +142,7 @@ interface ReportDetail extends ReportSummary {
 
 /** Admin-only extras on `/api/reports/:id`. */
 interface ReportReview {
+  founder: { full_name: string; email: string } | null;
   access: { report: boolean; course: boolean } | null;
   course: { courseId: string; status: CourseCard['status']; title: string | null } | null;
 }
@@ -823,7 +829,7 @@ function ReportsTable({ rows, showFounder }: { rows: ReportSummary[]; showFounde
 
 function ReportDetailView({ id }: { id: string }) {
   const { data, error, loading } = useAdminData<{ report: ReportDetail; review?: ReportReview }>(`/api/reports/${id}`);
-  const [view, setView] = useState<'feedback' | 'answers'>('feedback');
+  const [view, setView] = useState<'feedback' | 'certificate' | 'answers'>('feedback');
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -925,6 +931,7 @@ function ReportDetailView({ id }: { id: string }) {
           {(
             [
               { key: 'feedback', label: 'Feedback the founder received' },
+              { key: 'certificate', label: 'Readiness Certificate' },
               { key: 'answers', label: 'Answers & data' },
             ] as const
           ).map((v) => (
@@ -947,6 +954,27 @@ function ReportDetailView({ id }: { id: string }) {
 
       {view === 'feedback' ? (
         <ReportView report={founderReport} embedded />
+      ) : view === 'certificate' ? (
+        <Panel>
+          <h3 className="text-lg font-semibold text-ink">{SCORE_CERTIFICATE_NAME}</h3>
+          <p className="mt-0.5 text-sm text-mut">
+            Issued with this assessment, exactly as the founder sees it. Valid for 6 months from the report date.
+          </p>
+          <div className="mt-4">
+            <CertificateScroller>
+              <ScoreCertificate
+                reportId={report.id}
+                startupName={report.startup_name}
+                founderName={review?.founder ? review.founder.full_name || review.founder.email : null}
+                score={report.final_score}
+                maxScore={500}
+                band={bandFor(report.final_score).label}
+                dimensions={report.scores.map((s) => ({ label: s.category, percent: s.score }))}
+                issuedAt={Date.parse(report.created_at)}
+              />
+            </CertificateScroller>
+          </div>
+        </Panel>
       ) : (
         <>
           {profile.length > 0 ? (
@@ -1260,15 +1288,17 @@ function CourseDetailView({ id }: { id: string }) {
           <>
             <p className="mt-0.5 text-sm text-mut">The certificate exactly as the founder holds it.</p>
             <div className="mt-4">
-              <CertificateCard
-                learnerName={certificate.learnerName}
-                courseTitle={certificate.courseTitle}
-                startupName={plan.startup.name}
-                modules={plan.modules.map((m) => m.title)}
-                code={certificate.code}
-                issuedAt={certificate.issuedAt}
-                revokedAt={certificate.revokedAt}
-              />
+              <CertificateScroller>
+                <CourseCertificate
+                  learnerName={certificate.learnerName}
+                  courseTitle={certificate.courseTitle}
+                  startupName={plan.startup.name}
+                  modules={plan.modules.map((m) => m.title)}
+                  code={certificate.code}
+                  issuedAt={certificate.issuedAt}
+                  revokedAt={certificate.revokedAt}
+                />
+              </CertificateScroller>
             </div>
           </>
         ) : (

@@ -78,10 +78,20 @@ export const reportIdFor = (courseId: string) => (courseId.startsWith('gap_') ? 
 const jobRef = (reportId: string) => col('courseJobs').doc(reportId);
 
 export async function getJob(userId: string, reportId: string): Promise<CourseJob | null> {
+  const job = await getJobById(reportId);
+  return job?.user_id === userId ? job : null;
+}
+
+/** A job whoever owns it. Admin-only: founder-facing callers go through `getJob`. */
+export async function getJobById(reportId: string): Promise<CourseJob | null> {
   const snap = await jobRef(reportId).get();
-  if (!snap.exists) return null;
-  const job = snap.data() as CourseJob;
-  return job.user_id === userId ? job : null;
+  return snap.exists ? (snap.data() as CourseJob) : null;
+}
+
+/** Every founder's jobs, newest first. Admin-only. */
+export async function listAllJobs(limit = 1000): Promise<CourseJob[]> {
+  const snap = await col('courseJobs').orderBy('created_at', 'desc').limit(limit).get();
+  return snap.docs.map((d) => d.data() as CourseJob);
 }
 
 export async function listJobs(userId: string): Promise<CourseJob[]> {

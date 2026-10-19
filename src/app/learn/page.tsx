@@ -16,7 +16,7 @@ export const metadata: Metadata = { title: 'My Courses · iStartup Score' };
 export default async function LearnPage() {
   const userId = await sessionUserId();
   if (!userId) redirect('/start');
-  const cards = await listCourseCards(userId, await listJobs(userId));
+  const cards = await listCourseCards(await listJobs(userId));
 
   return (
     <>

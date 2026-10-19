@@ -11,7 +11,7 @@ import {
   type Progress,
 } from '@/features/lms/domain';
 
-import { getJob, reportIdFor, type CourseJob } from './service';
+import { getJob, getJobById, reportIdFor, type CourseJob } from './service';
 import { certificateExpiry } from './shared';
 
 /** Everything a course page renders, for one founder. Null when it isn't theirs. */
@@ -25,12 +25,26 @@ export interface CourseView {
   certificate: Certificate | null;
 }
 
-export async function getCourseView(userId: string, courseId: string): Promise<CourseView | null> {
+const reportIdOf = (courseId: string) => {
   const reportId = reportIdFor(courseId);
-  if (!reportId || !/^[0-9a-f-]{36}$/i.test(reportId)) return null;
-  const job = await getJob(userId, reportId);
-  if (!job) return null;
+  return reportId && /^[0-9a-f-]{36}$/i.test(reportId) ? reportId : null;
+};
 
+export async function getCourseView(userId: string, courseId: string): Promise<CourseView | null> {
+  const reportId = reportIdOf(courseId);
+  const job = reportId ? await getJob(userId, reportId) : null;
+  return job ? loadCourseView(job) : null;
+}
+
+/** Any founder's course, for the admin console. The caller must have checked admin access. */
+export async function getCourseViewForAdmin(courseId: string): Promise<CourseView | null> {
+  const reportId = reportIdOf(courseId);
+  const job = reportId ? await getJobById(reportId) : null;
+  return job ? loadCourseView(job) : null;
+}
+
+async function loadCourseView(job: CourseJob): Promise<CourseView> {
+  const { course_id: courseId, user_id: userId } = job;
   const repos = lmsRepos();
   const [course, enrollment, progress] = await Promise.all([
     repos.courses.get(courseId),
@@ -52,11 +66,12 @@ export async function getCourseView(userId: string, courseId: string): Promise<C
   return { job, course, enrollment, curriculum, progress, completed, certificate };
 }
 
-/** A founder's courses with progress, newest first — for the /learn list. */
-export async function listCourseCards(userId: string, jobs: CourseJob[]) {
+/** Courses with their learner's progress, in the order given — for /learn and the admin console. */
+export async function listCourseCards(jobs: CourseJob[]) {
   const repos = lmsRepos();
   return Promise.all(
     jobs.map(async (job) => {
+      const userId = job.user_id;
       const [progress, enrollment] =
         job.status === 'ready'
           ? await Promise.all([
@@ -69,6 +84,7 @@ export async function listCourseCards(userId: string, jobs: CourseJob[]) {
       return {
         courseId: job.course_id,
         reportId: job.id,
+        userId,
         title: job.title ?? 'Designing your course…',
         subtitle: job.subtitle ?? null,
         status: job.status,
@@ -81,6 +97,7 @@ export async function listCourseCards(userId: string, jobs: CourseJob[]) {
         certificateId: enrollment?.certificateId ?? null,
         certificateExpiresAt: certificate ? certificateExpiry(certificate.issuedAt).toISOString() : null,
         createdAt: job.created_at,
+        updatedAt: job.updated_at,
       };
     }),
   );

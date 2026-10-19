@@ -28,6 +28,8 @@ import { Eyebrow, Panel } from './chrome';
  *
  * `locked`: only the hero (the score) is readable. The analysis below renders blurred and
  * inert under `lockOverlay`, and the overview, appendix and PDF export are withheld.
+ *
+ * Without `onEdit` / `onRestart` (the admin console's read-only copy) those buttons are hidden.
  */
 
 const LEVEL_STYLE: Record<Level, string> = {
@@ -51,14 +53,17 @@ export function ReportView({
   locked = false,
   lockOverlay,
   extra,
+  embedded = false,
 }: {
   report: IStartupReport;
-  onEdit: () => void;
-  onRestart: () => void;
+  onEdit?: () => void;
+  onRestart?: () => void;
   locked?: boolean;
   lockOverlay?: ReactNode;
   /** Rendered after the report, e.g. the course offer. */
   extra?: ReactNode;
+  /** Drop the page gutters, for rendering inside another page (the admin console). */
+  embedded?: boolean;
 }) {
   const { profile, finalScore, band, categories, strengths, gaps } = report;
   const actions = priorityActions(report);
@@ -163,16 +168,20 @@ export function ReportView({
   );
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 pb-24 pt-8 sm:px-6 sm:pt-10">
+    <div className={cn('mx-auto w-full max-w-5xl', !embedded && 'px-4 pb-24 pt-8 sm:px-6 sm:pt-10')}>
       <div className="no-print mb-5 flex flex-wrap items-center justify-between gap-3">
         <Eyebrow>Assessment complete</Eyebrow>
         <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" size="sm" onClick={onEdit}>
-            <PencilLine className="h-3.5 w-3.5" /> Edit answers
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onRestart}>
-            <RotateCcw className="h-3.5 w-3.5" /> Start a new assessment
-          </Button>
+          {onEdit ? (
+            <Button variant="ghost" size="sm" onClick={onEdit}>
+              <PencilLine className="h-3.5 w-3.5" /> Edit answers
+            </Button>
+          ) : null}
+          {onRestart ? (
+            <Button variant="ghost" size="sm" onClick={onRestart}>
+              <RotateCcw className="h-3.5 w-3.5" /> Start a new assessment
+            </Button>
+          ) : null}
           {locked ? null : (
             <Button size="sm" onClick={() => window.print()}>
               <Download className="h-3.5 w-3.5" /> Download PDF

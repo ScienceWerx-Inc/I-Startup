@@ -5,22 +5,33 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   BarChart3,
+  Check,
+  Circle,
+  ClipboardCheck,
   CreditCard,
   Database,
   FileText,
   Globe2,
+  GraduationCap,
+  Info,
   ListOrdered,
   LogOut,
   RefreshCw,
   Settings2,
   Trash2,
+  TriangleAlert,
   Users,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import type { LessonCheckpoint } from '@/features/lms/domain';
+import type { GapPlan } from '@/lib/gap-course/plan';
+import { CERTIFICATE_NAME, EXERCISE_PREFIX } from '@/lib/gap-course/shared';
 import { cn } from '@/lib/utils';
-import { QUESTIONS } from '@/modules/istartup-score/assessment/bank';
+import { QUESTIONS, type StartupProfile } from '@/modules/istartup-score/assessment/bank';
+import { computeReport } from '@/modules/istartup-score/assessment/scoring';
 import { Panel } from '@/modules/istartup-score/components/chrome';
+import { ReportView } from '@/modules/istartup-score/components/report-view';
 import { ONBOARDING_STEPS, type OnboardingAnswers } from '@/modules/istartup-score/onboarding/fields';
 
 import {
@@ -43,8 +54,9 @@ import {
 } from './admin-ui';
 
 /**
- * The admin console: everything stored, in five tabs. The route lives in the URL hash
- * (`#founders/<id>`, `#reports/<id>`), so any view can be linked or reloaded.
+ * The admin console: everything stored, in six tabs. The route lives in the URL hash
+ * (`#founders/<id>`, `#reports/<id>`, `#courses/<courseId>`), so any view can be linked
+ * or reloaded.
  */
 
 /* ─────────────────────────────── Types ─────────────────────────────── */
@@ -83,6 +95,7 @@ interface Stats {
   byCountry: Array<{ label: string; count: number }>;
   byCity: Array<{ label: string; count: number }>;
   dimAvg: Array<{ label: string; avg: number }>;
+  commonGaps: Array<{ id: string; title: string; section: string; count: number }>;
   note: string;
 }
 
@@ -105,6 +118,7 @@ interface ReportSummary {
   startup_name: string;
   final_score: number;
   band: string;
+  scores?: Array<{ category: string; score: number }>;
   country: string | null;
   region: string | null;
   city: string | null;
@@ -119,6 +133,12 @@ interface ReportDetail extends ReportSummary {
   company_info: unknown;
   answers: Record<string, number>;
   scores: Array<{ category: string; score: number }>;
+}
+
+/** Admin-only extras on `/api/reports/:id`. */
+interface ReportReview {
+  access: { report: boolean; course: boolean } | null;
+  course: { courseId: string; status: CourseCard['status']; title: string | null } | null;
 }
 
 interface Purchase {
@@ -139,8 +159,12 @@ interface Purchase {
 
 interface CourseCard {
   courseId: string;
+  reportId: string;
+  userId: string;
   title: string;
+  subtitle: string | null;
   status: 'outlining' | 'writing' | 'publishing' | 'ready' | 'error';
+  startup: string;
   score: number;
   modules: string[];
   lessonsTotal: number;
@@ -149,6 +173,53 @@ interface CourseCard {
   certificateId: string | null;
   certificateExpiresAt: string | null;
   createdAt: string;
+  updatedAt: string;
+  user_email?: string | null;
+  user_name?: string | null;
+}
+
+interface CourseLesson {
+  id: string;
+  title: string;
+  brief: string;
+  durationMin: number;
+  status: 'pending' | 'running' | 'done' | 'error';
+  error: string | null;
+  completed: boolean;
+  content: {
+    body: string;
+    keyPoints: string[];
+    callout: { kind: 'warning' | 'note'; text: string } | null;
+    checkpoint: LessonCheckpoint | null;
+  } | null;
+}
+
+interface CourseDetail {
+  founder: { id: string; email: string; full_name: string } | null;
+  course: {
+    courseId: string;
+    reportId: string;
+    userId: string;
+    status: CourseCard['status'];
+    error: string | null;
+    title: string | null;
+    subtitle: string | null;
+    description: string | null;
+    published: boolean;
+    createdAt: string;
+    updatedAt: string;
+  };
+  plan: GapPlan;
+  enrollment: {
+    status: string;
+    source: string;
+    startedAt: number;
+    lastAccessedAt: number;
+    completedAt: number | null;
+  } | null;
+  progress: { percent: number; completed: number; total: number; timeSpentSec: number } | null;
+  certificate: { code: string; issuedAt: number; expiresAt: string; revokedAt: number | null } | null;
+  modules: Array<{ id: string; key: string; title: string; lessons: CourseLesson[] }>;
 }
 
 interface DbTest {
@@ -163,6 +234,7 @@ const TABS = [
   { key: 'overview', label: 'Overview', icon: BarChart3 },
   { key: 'founders', label: 'Founders', icon: Users },
   { key: 'reports', label: 'Reports', icon: ListOrdered },
+  { key: 'courses', label: 'Courses', icon: GraduationCap },
   { key: 'payments', label: 'Payments', icon: CreditCard },
   { key: 'system', label: 'System', icon: Settings2 },
 ] as const;
@@ -174,6 +246,25 @@ const bandLabel = (code: string) => (code ? code[0].toUpperCase() + code.slice(1
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 const PRODUCT_LABEL: Record<string, string> = { report: 'Full report', course: 'Course + 411 Cert.' };
+
+const COURSE_STATUS: Record<CourseCard['status'], { label: string; tone: 'good' | 'warn' | 'brand' | 'neutral' }> = {
+  outlining: { label: 'Designing', tone: 'neutral' },
+  writing: { label: 'Writing lessons', tone: 'neutral' },
+  publishing: { label: 'Publishing', tone: 'neutral' },
+  ready: { label: 'Ready', tone: 'good' },
+  error: { label: 'Failed', tone: 'warn' },
+};
+
+/** Epoch ms (LMS timestamps) as the console's date strings. */
+const msDate = (ms: number | null | undefined) => (ms ? new Date(ms).toISOString() : null);
+const duration = (sec: number) =>
+  sec >= 3600 ? `${Math.floor(sec / 3600)}h ${Math.round((sec % 3600) / 60)}m` : `${Math.max(0, Math.round(sec / 60))}m`;
+
+/** The report's weakest dimension, from its stored scores. */
+function weakest(scores: ReportSummary['scores']) {
+  if (!scores?.length) return null;
+  return scores.reduce((low, s) => (s.score < low.score ? s : low));
+}
 
 /* ─────────────────────────────── Shell ─────────────────────────────── */
 
@@ -218,6 +309,7 @@ export function AdminDashboard() {
       {tab === 'overview' ? <OverviewTab /> : null}
       {tab === 'founders' ? id ? <FounderDetail id={id} /> : <FoundersTab /> : null}
       {tab === 'reports' ? id ? <ReportDetailView id={id} /> : <ReportsTab /> : null}
+      {tab === 'courses' ? id ? <CourseDetailView id={id} /> : <CoursesTab /> : null}
       {tab === 'payments' ? <PaymentsTab /> : null}
       {tab === 'system' ? <SystemTab /> : null}
     </div>
@@ -367,6 +459,16 @@ function OverviewTab() {
               <h3 className="text-sm font-semibold text-ink">Top cities (IP)</h3>
               <Bars rows={stats.data.byCity.slice(0, 8)} />
             </div>
+          </div>
+          <div className="mt-6 border-t border-line pt-5">
+            <h3 className="text-sm font-semibold text-ink">Most common gaps</h3>
+            <p className="mt-0.5 text-xs text-mut">
+              Questions answered 1–2 out of 5: the gap feedback founders receive most often.
+            </p>
+            <Bars
+              labelWidth={200}
+              rows={(stats.data.commonGaps ?? []).map((g) => ({ label: `${g.title} · ${g.section}`, count: g.count }))}
+            />
           </div>
           <p className="mt-5 text-xs text-mut">{stats.data.note}</p>
         </Panel>
@@ -535,14 +637,21 @@ function FounderDetail({ id }: { id: string }) {
 
       <Panel>
         <h3 className="text-lg font-semibold text-ink">Gap-closing courses</h3>
+        <p className="mt-0.5 text-sm text-mut">Select one to read every lesson as it was written for this founder.</p>
         {courses.length === 0 ? (
           <p className="mt-3 text-sm text-mut">No course generated yet.</p>
         ) : (
           <ul className="mt-4 divide-y divide-line">
             {courses.map((c) => (
-              <li key={c.courseId} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+              <li
+                key={c.courseId}
+                className="-mx-2 flex cursor-pointer flex-col gap-2 rounded-lg px-2 py-3 hover:bg-paper sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+                onClick={() => go(`courses/${c.courseId}`)}
+              >
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-ink">{c.title}</p>
+                  <button type="button" className="text-left text-sm font-medium text-brand hover:underline" onClick={() => go(`courses/${c.courseId}`)}>
+                    {c.title}
+                  </button>
                   <p className="mt-0.5 text-xs text-mut">
                     From a {c.score}/500 report · {date(c.createdAt)} · {c.modules.join(', ')}
                   </p>
@@ -600,7 +709,7 @@ function ReportsTab() {
       <PanelHead
         icon={ListOrdered}
         title="Reports"
-        sub={data ? `${plural(data.reports.length, 'report')}. Select one for every answer.` : undefined}
+        sub={data ? `${plural(data.reports.length, 'report')}. Select one for the feedback the founder received and every answer.` : undefined}
         action={
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
             <SearchBox value={q} onChange={setQ} placeholder="Search startup, founder, band…" />
@@ -625,7 +734,7 @@ function ReportsTab() {
 function ReportsTable({ rows, showFounder }: { rows: ReportSummary[]; showFounder: boolean }) {
   return (
     <TableFrame>
-      <table className="w-full min-w-[720px] text-left text-sm">
+      <table className="w-full min-w-[860px] text-left text-sm">
         <thead>
           <tr className="border-b border-line">
             <th className={th}>Startup</th>
@@ -633,6 +742,7 @@ function ReportsTable({ rows, showFounder }: { rows: ReportSummary[]; showFounde
             <th className={th}>Location</th>
             <th className={cn(th, 'text-right')}>Score</th>
             <th className={th}>Band</th>
+            <th className={th}>Weakest</th>
             <th className={cn(th, 'pr-0 text-right')}>Created</th>
           </tr>
         </thead>
@@ -666,6 +776,18 @@ function ReportsTable({ rows, showFounder }: { rows: ReportSummary[]; showFounde
               <td className={cn(td, 'text-mut')}>{[r.city, r.country].filter(Boolean).join(', ') || '—'}</td>
               <td className={cn(td, 'text-right font-mono font-semibold text-ink tabular')}>{r.final_score}</td>
               <td className={cn(td, 'text-mut')}>{bandLabel(r.band)}</td>
+              <td className={cn(td, 'text-mut')}>
+                {(() => {
+                  const w = weakest(r.scores);
+                  return w ? (
+                    <>
+                      {w.category} <span className="font-mono text-xs">{w.score}%</span>
+                    </>
+                  ) : (
+                    '—'
+                  );
+                })()}
+              </td>
               <td className={cn(td, 'pr-0 text-right font-mono text-xs text-mut')}>{dateTime(r.created_at)}</td>
             </tr>
           ))}
@@ -676,9 +798,24 @@ function ReportsTable({ rows, showFounder }: { rows: ReportSummary[]; showFounde
 }
 
 function ReportDetailView({ id }: { id: string }) {
-  const { data, error, loading } = useAdminData<{ report: ReportDetail }>(`/api/reports/${id}`);
+  const { data, error, loading } = useAdminData<{ report: ReportDetail; review?: ReportReview }>(`/api/reports/${id}`);
+  const [view, setView] = useState<'feedback' | 'answers'>('feedback');
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // The same report the founder was shown: recomputed from their answers by the scorer
+  // their report page uses, so the feedback text here is exactly theirs.
+  const founderReport = useMemo(() => {
+    const r = data?.report;
+    if (!r) return null;
+    const stored = (r.profile ?? {}) as Partial<StartupProfile>;
+    const profile: StartupProfile = {
+      ...stored,
+      name: String(stored.name ?? r.startup_name ?? ''),
+      description: String(stored.description ?? ''),
+    };
+    return computeReport(profile, r.answers ?? {}, new Date(r.created_at));
+  }, [data?.report]);
 
   const back = (
     <Button variant="ghost" size="sm" onClick={() => window.history.back()}>
@@ -686,13 +823,15 @@ function ReportDetailView({ id }: { id: string }) {
     </Button>
   );
   if (error) return <div className="space-y-4">{back}<ErrorNote error={error} /></div>;
-  if (!data) return <div className="space-y-4">{back}<p className="text-sm text-mut">{loading ? 'Loading…' : '—'}</p></div>;
+  if (!data || !founderReport) return <div className="space-y-4">{back}<p className="text-sm text-mut">{loading ? 'Loading…' : '—'}</p></div>;
 
-  const report = data.report;
+  const { report, review } = data;
   const answers = report.answers ?? {};
   const location = [report.city, report.region, report.country].filter(Boolean).join(', ');
   // The onboarding copy saved with the report is shown on the founder page instead.
   const profile = Object.entries(report.profile ?? {}).filter(([k, v]) => k !== 'onboarding' && typeof v !== 'object');
+  const access = review?.access;
+  const course = review?.course;
 
   const remove = async () => {
     if (!window.confirm(`Delete the report for “${report.startup_name || 'Untitled'}”? This cannot be undone.`)) return;
@@ -708,7 +847,7 @@ function ReportDetailView({ id }: { id: string }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="no-print flex flex-wrap items-center justify-between gap-3">
         {back}
         <Button variant="ghost" size="sm" onClick={remove} disabled={deleting} className="text-risk hover:bg-risk-soft hover:text-risk">
           <Trash2 className="h-3.5 w-3.5" /> Delete report
@@ -716,60 +855,486 @@ function ReportDetailView({ id }: { id: string }) {
       </div>
       <ErrorNote error={deleteError} />
 
-      <Panel>
+      <Panel className="no-print">
         <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-mut">
           <FileText className="h-3.5 w-3.5" /> Report · {report.id.slice(0, 8)}
         </p>
         <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">{report.startup_name || 'Untitled startup'}</h2>
-        {report.user_id ? (
-          <button type="button" onClick={() => go(`founders/${report.user_id}`)} className="mt-1 text-sm text-brand hover:underline">
-            View founder →
-          </button>
-        ) : (
-          <p className="mt-1 text-sm text-mut">Submitted before accounts existed (anonymous).</p>
-        )}
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          {report.user_id ? (
+            <button type="button" onClick={() => go(`founders/${report.user_id}`)} className="text-brand hover:underline">
+              View founder →
+            </button>
+          ) : (
+            <p className="text-mut">Submitted before accounts existed (anonymous).</p>
+          )}
+          {course ? (
+            <button type="button" onClick={() => go(`courses/${course.courseId}`)} className="text-brand hover:underline">
+              Review the course built from it →
+            </button>
+          ) : null}
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-6">
           <Tile label="Score" value={`${report.final_score} / 500`} />
           <Tile label="Band" value={bandLabel(report.band)} />
-          <Tile label="App ID" value={report.app_id ?? '—'} />
-          <Tile label="Location" value={location || 'Unknown'} />
+          <Tile
+            label="Founder saw"
+            value={access ? (access.report ? 'Full report' : 'Score only') : '—'}
+            sub={access ? (access.report ? 'Report unlocked' : 'Analysis locked') : 'Anonymous'}
+          />
+          <Tile
+            label="Course"
+            value={course ? COURSE_STATUS[course.status].label : 'None'}
+            sub={course?.title ?? 'Not generated'}
+          />
+          <Tile label="Location" value={location || 'Unknown'} sub={report.app_id ? `App ${report.app_id}` : undefined} />
           <Tile label="Created" value={date(report.created_at)} sub={dateTime(report.created_at)} />
         </div>
-        {profile.length > 0 ? (
-          <dl className="mt-5 grid gap-x-6 gap-y-2 border-t border-line pt-4 text-sm sm:grid-cols-2">
-            {profile.map(([k, v]) => (
-              <div key={k} className={cn('flex gap-2', k === 'description' && 'sm:col-span-2')}>
-                <dt className="shrink-0 font-mono text-xs text-mut">{k}:</dt>
-                <dd className="min-w-0 text-ink">{String(v ?? '—')}</dd>
-              </div>
-            ))}
-          </dl>
+        {founderReport.finalScore !== report.final_score ? (
+          <p className="mt-4 rounded-lg bg-warn-soft p-3 text-xs text-warn">
+            Recomputing these answers with today&apos;s question bank gives {founderReport.finalScore}, not the stored{' '}
+            {report.final_score}. The question bank changed after this report was saved, so the feedback below may differ
+            slightly from what the founder saw.
+          </p>
+        ) : null}
+        <div className="mt-5 inline-flex rounded-full bg-paper p-1" role="tablist" aria-label="Report view">
+          {(
+            [
+              { key: 'feedback', label: 'Feedback the founder received' },
+              { key: 'answers', label: 'Answers & data' },
+            ] as const
+          ).map((v) => (
+            <button
+              key={v.key}
+              type="button"
+              role="tab"
+              aria-selected={view === v.key}
+              onClick={() => setView(v.key)}
+              className={cn(
+                'rounded-full px-3.5 py-1.5 text-sm transition-colors',
+                view === v.key ? 'bg-ink font-medium text-white' : 'text-mut hover:text-ink',
+              )}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+      </Panel>
+
+      {view === 'feedback' ? (
+        <ReportView report={founderReport} embedded />
+      ) : (
+        <>
+          {profile.length > 0 ? (
+            <Panel>
+              <h3 className="text-lg font-semibold text-ink">Startup profile</h3>
+              <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                {profile.map(([k, v]) => (
+                  <div key={k} className={cn('flex gap-2', k === 'description' && 'sm:col-span-2')}>
+                    <dt className="shrink-0 font-mono text-xs text-mut">{k}:</dt>
+                    <dd className="min-w-0 text-ink">{String(v ?? '—')}</dd>
+                  </div>
+                ))}
+              </dl>
+            </Panel>
+          ) : null}
+
+          <Panel>
+            <h3 className="text-lg font-semibold text-ink">Dimension scores</h3>
+            <Bars rows={report.scores.map((s) => ({ label: s.category, count: s.score }))} max={100} format={(n) => `${n}%`} />
+          </Panel>
+
+          <Panel>
+            <h3 className="text-lg font-semibold text-ink">All answers</h3>
+            <div className="mt-4 space-y-4">
+              {QUESTIONS.map((q) => {
+                const value = answers[q.id];
+                const label = q.options.find((o) => o.value === value)?.label;
+                return (
+                  <div key={q.id} className="border-b border-line pb-3 last:border-0 last:pb-0">
+                    <p className="flex items-baseline justify-between gap-3 text-sm font-medium text-ink">
+                      {q.title}
+                      <span className="shrink-0 font-mono text-xs text-ink tabular">{value ? `${value}/5` : '—'}</span>
+                    </p>
+                    <p className="mt-0.5 text-sm text-mut">{label ?? 'Not answered'}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </Panel>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────── Courses ─────────────────────────────── */
+
+function CoursesTab() {
+  const { data, error, loading, reload } = useAdminData<{ courses: CourseCard[] }>('/api/admin/courses');
+  const [q, setQ] = useState('');
+  const rows = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const all = data?.courses ?? [];
+    if (!needle) return all;
+    return all.filter((c) =>
+      [c.title, c.startup, c.user_email, c.user_name, COURSE_STATUS[c.status].label, ...c.modules].some((v) =>
+        String(v ?? '').toLowerCase().includes(needle),
+      ),
+    );
+  }, [data, q]);
+  const all = data?.courses ?? [];
+  const ready = all.filter((c) => c.status === 'ready');
+
+  return (
+    <div className="space-y-5">
+      <Panel>
+        <PanelHead
+          icon={GraduationCap}
+          title="Courses"
+          sub={data ? `${plural(all.length, 'generated course')}. Select one to review every lesson.` : undefined}
+          action={
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+              <SearchBox value={q} onChange={setQ} placeholder="Search course, founder, module…" />
+              <ReloadButton onClick={reload} loading={loading} />
+            </div>
+          }
+        />
+        <ErrorNote error={error} />
+        {data ? (
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Tile label="Generated" value={all.length} sub={`${ready.length} ready`} />
+            <Tile
+              label="In progress / failed"
+              value={`${all.filter((c) => c.status !== 'ready' && c.status !== 'error').length} / ${all.filter((c) => c.status === 'error').length}`}
+              sub="Still generating · generation failed"
+            />
+            <Tile
+              label="Avg completion"
+              value={ready.length ? `${Math.round(ready.reduce((a, c) => a + c.percent, 0) / ready.length)}%` : '—'}
+              sub={`${ready.filter((c) => c.percent > 0).length} started`}
+            />
+            <Tile label={`${CERTIFICATE_NAME}s`} value={all.filter((c) => c.certificateId).length} sub="Earned" />
+          </div>
         ) : null}
       </Panel>
 
+      {data ? (
+        <Panel>
+          {rows.length === 0 ? (
+            <p className="text-sm text-mut">{q ? 'No courses match.' : 'No courses generated yet.'}</p>
+          ) : (
+            <TableFrame>
+              <table className="w-full min-w-[900px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-line">
+                    <th className={th}>Course</th>
+                    <th className={th}>Founder</th>
+                    <th className={cn(th, 'text-right')}>From score</th>
+                    <th className={th}>Status</th>
+                    <th className={cn(th, 'text-right')}>Lessons</th>
+                    <th className={cn(th, 'text-right')}>Progress</th>
+                    <th className={th}>Certificate</th>
+                    <th className={cn(th, 'pr-0 text-right')}>Created</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {rows.map((c) => (
+                    <tr key={c.courseId} className="cursor-pointer hover:bg-paper" onClick={() => go(`courses/${c.courseId}`)}>
+                      <td className={td}>
+                        <button type="button" className="text-left font-medium text-brand hover:underline" onClick={() => go(`courses/${c.courseId}`)}>
+                          {c.title}
+                        </button>
+                        <span className="block max-w-[320px] truncate text-xs text-mut" title={c.modules.join(', ')}>
+                          {c.modules.join(' · ')}
+                        </span>
+                      </td>
+                      <td className={td}>
+                        <button
+                          type="button"
+                          className="text-left text-ink hover:text-brand hover:underline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            go(`founders/${c.userId}`);
+                          }}
+                        >
+                          {c.user_name || c.user_email || '—'}
+                        </button>
+                        <span className="block text-xs text-mut">{c.startup || ''}</span>
+                      </td>
+                      <td className={cn(td, 'text-right font-mono tabular')}>{c.score}</td>
+                      <td className={td}>
+                        <Badge tone={COURSE_STATUS[c.status].tone}>{COURSE_STATUS[c.status].label}</Badge>
+                      </td>
+                      <td className={cn(td, 'text-right font-mono tabular')}>
+                        {c.lessonsWritten}/{c.lessonsTotal || '?'}
+                      </td>
+                      <td className={cn(td, 'text-right font-mono font-semibold tabular')}>{c.status === 'ready' ? `${c.percent}%` : '—'}</td>
+                      <td className={cn(td, 'text-mut')}>
+                        {c.certificateId ? (
+                          <span className="font-mono text-xs text-ink">{c.certificateId.slice(0, 14)}</span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className={cn(td, 'pr-0 text-right font-mono text-xs text-mut')}>{date(c.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableFrame>
+          )}
+        </Panel>
+      ) : (
+        !error && <p className="text-sm text-mut">{loading ? 'Loading…' : '—'}</p>
+      )}
+    </div>
+  );
+}
+
+function CourseDetailView({ id }: { id: string }) {
+  const { data, error, loading, reload } = useAdminData<CourseDetail>(`/api/admin/courses/${encodeURIComponent(id)}`);
+  const [open, setOpen] = useState<Set<string>>(new Set());
+
+  const back = (
+    <Button variant="ghost" size="sm" onClick={() => window.history.back()}>
+      <ArrowLeft className="h-3.5 w-3.5" /> Back
+    </Button>
+  );
+  if (error) return <div className="space-y-4">{back}<ErrorNote error={error} /></div>;
+  if (!data) return <div className="space-y-4">{back}<p className="text-sm text-mut">{loading ? 'Loading…' : '—'}</p></div>;
+
+  const { founder, course, plan, enrollment, progress, certificate, modules } = data;
+  const lessons = modules.flatMap((m) => m.lessons);
+  const allOpen = lessons.length > 0 && lessons.every((l) => open.has(l.id));
+  const toggle = (lessonId: string) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(lessonId)) next.delete(lessonId);
+      else next.add(lessonId);
+      return next;
+    });
+  const lessonNumber = new Map(lessons.map((l, i) => [l.id, i + 1]));
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {back}
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setOpen(allOpen ? new Set() : new Set(lessons.map((l) => l.id)))}>
+            {allOpen ? 'Collapse all lessons' : 'Expand all lessons'}
+          </Button>
+          <ReloadButton onClick={reload} loading={loading} />
+        </div>
+      </div>
+
       <Panel>
-        <h3 className="text-lg font-semibold text-ink">Dimension scores</h3>
-        <Bars rows={report.scores.map((s) => ({ label: s.category, count: s.score }))} max={100} format={(n) => `${n}%`} />
+        <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-mut">
+          <GraduationCap className="h-3.5 w-3.5" /> Gap-closing course · {course.courseId}
+        </p>
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">{course.title ?? 'Course still being designed'}</h2>
+        {course.subtitle ? <p className="mt-1 text-[15px] text-mut">{course.subtitle}</p> : null}
+        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          {founder ? (
+            <button type="button" onClick={() => go(`founders/${founder.id}`)} className="text-brand hover:underline">
+              {founder.full_name || founder.email} →
+            </button>
+          ) : (
+            <span className="text-mut">Founder account deleted</span>
+          )}
+          <button type="button" onClick={() => go(`reports/${course.reportId}`)} className="text-brand hover:underline">
+            Source report ({plan.finalScore}/500) →
+          </button>
+        </div>
+        {course.description ? <p className="mt-4 max-w-3xl text-sm leading-relaxed text-ink">{course.description}</p> : null}
+        {course.error ? (
+          <p className="mt-4 rounded-lg bg-warn-soft p-3 text-sm text-warn">Generation note: {course.error}</p>
+        ) : null}
+
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-6">
+          <Tile
+            label="Status"
+            value={COURSE_STATUS[course.status].label}
+            sub={course.published ? 'Published to the LMS' : 'Not published yet'}
+          />
+          <Tile
+            label="Lessons written"
+            value={`${lessons.filter((l) => l.status === 'done').length} / ${lessons.length}`}
+            sub={`${lessons.reduce((a, l) => a + l.durationMin, 0)} min total`}
+          />
+          <Tile
+            label="Progress"
+            value={progress ? `${progress.percent}%` : '—'}
+            sub={progress ? `${progress.completed} of ${progress.total} lessons` : enrollment ? 'Not started' : 'Not enrolled'}
+          />
+          <Tile label="Time spent" value={progress ? duration(progress.timeSpentSec) : '—'} sub="Tracked in lessons" />
+          <Tile
+            label="Last active"
+            value={enrollment ? date(msDate(enrollment.lastAccessedAt)) : '—'}
+            sub={enrollment ? `Enrolled ${date(msDate(enrollment.startedAt))} · ${enrollment.source}` : 'Not enrolled'}
+          />
+          <Tile
+            label={CERTIFICATE_NAME}
+            value={certificate ? (certificate.revokedAt ? 'Revoked' : 'Earned') : '—'}
+            sub={certificate ? `${certificate.code} · until ${date(certificate.expiresAt)}` : 'Not earned yet'}
+          />
+        </div>
       </Panel>
 
       <Panel>
-        <h3 className="text-lg font-semibold text-ink">All answers</h3>
-        <div className="mt-4 space-y-4">
-          {QUESTIONS.map((q) => {
-            const value = answers[q.id];
-            const label = q.options.find((o) => o.value === value)?.label;
-            return (
-              <div key={q.id} className="border-b border-line pb-3 last:border-0 last:pb-0">
-                <p className="flex items-baseline justify-between gap-3 text-sm font-medium text-ink">
-                  {q.title}
-                  <span className="shrink-0 font-mono text-xs text-ink tabular">{value ? `${value}/5` : '—'}</span>
-                </p>
-                <p className="mt-0.5 text-sm text-mut">{label ?? 'Not answered'}</p>
-              </div>
-            );
-          })}
+        <h3 className="text-lg font-semibold text-ink">Why this course</h3>
+        <p className="mt-0.5 text-sm text-mut">
+          The gaps it was built to close, from the founder&apos;s {plan.finalScore}/500 assessment ({plan.band}).
+        </p>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          {plan.modules.map((m) => (
+            <div key={m.key} className="rounded-lg bg-paper p-4">
+              <p className="flex items-baseline justify-between gap-3 text-sm font-semibold text-ink">
+                {m.title} <span className="font-mono text-xs text-risk">{m.percent}%</span>
+              </p>
+              <ul className="mt-2 space-y-2">
+                {m.focus.map((f) => (
+                  <li key={f.questionId} className="text-xs leading-relaxed">
+                    <span className="font-medium text-ink">
+                      {f.title} <span className="font-mono text-mut">{f.value}/5</span>
+                    </span>
+                    <span className="block text-mut">{f.gap}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
       </Panel>
+
+      {modules.length === 0 ? (
+        <Panel>
+          <p className="text-sm text-mut">The outline hasn&apos;t been generated yet.</p>
+        </Panel>
+      ) : null}
+
+      {modules.map((m, mi) => (
+        <Panel key={m.id} className="p-0 sm:p-0">
+          <div className="border-b border-line px-5 py-4 sm:px-7">
+            <p className="font-mono text-[11px] uppercase tracking-wider text-mut">Module {mi + 1}</p>
+            <h3 className="mt-0.5 text-lg font-semibold text-ink">{m.title}</h3>
+          </div>
+          <ol>
+            {m.lessons.map((l) => {
+              const expanded = open.has(l.id);
+              return (
+                <li key={l.id} className="border-b border-line last:border-0">
+                  <button
+                    type="button"
+                    onClick={() => toggle(l.id)}
+                    aria-expanded={expanded}
+                    className="flex w-full items-start gap-3 px-5 py-3.5 text-left transition-colors hover:bg-paper sm:px-7"
+                  >
+                    {l.completed ? (
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-good" aria-label="Completed by the founder" />
+                    ) : (
+                      <Circle className="mt-0.5 h-4 w-4 shrink-0 text-line-strong" aria-label="Not completed" />
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium text-ink">
+                        {lessonNumber.get(l.id)}. {l.title}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-mut">{l.brief}</span>
+                    </span>
+                    <span className="flex shrink-0 flex-col items-end gap-1">
+                      {l.status !== 'done' ? (
+                        <Badge tone={l.status === 'error' ? 'warn' : 'neutral'}>{l.status === 'error' ? 'Failed' : l.status}</Badge>
+                      ) : null}
+                      <span className="font-mono text-[11px] text-mut">{l.durationMin} min</span>
+                    </span>
+                  </button>
+                  {expanded ? <LessonReview lesson={l} /> : null}
+                </li>
+              );
+            })}
+          </ol>
+        </Panel>
+      ))}
+    </div>
+  );
+}
+
+/** One lesson exactly as written, with the checkpoint's answer shown. */
+function LessonReview({ lesson }: { lesson: CourseLesson }) {
+  const c = lesson.content;
+  if (!c) {
+    return (
+      <p className="px-5 pb-4 text-sm text-mut sm:px-7">
+        {lesson.error ?? (lesson.status === 'done' ? 'Lesson content is missing.' : 'Not written yet.')}
+      </p>
+    );
+  }
+  const paragraphs = c.body.split(/\n\s*\n/).filter(Boolean);
+  const exercise = paragraphs.find((p) => p.startsWith(EXERCISE_PREFIX));
+  const prose = paragraphs.filter((p) => p !== exercise);
+
+  return (
+    <div className="space-y-4 border-t border-line bg-paper/60 px-5 py-5 sm:px-7">
+      <div className="max-w-3xl space-y-3">
+        {prose.map((p, i) => (
+          <p key={i} className="text-sm leading-relaxed text-ink">
+            {p}
+          </p>
+        ))}
+      </div>
+      {c.callout ? (
+        <div className={cn('flex max-w-3xl gap-2.5 rounded-lg p-3.5 text-sm text-ink', c.callout.kind === 'warning' ? 'bg-warn-soft' : 'bg-brand-soft')}>
+          {c.callout.kind === 'warning' ? (
+            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warn" />
+          ) : (
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
+          )}
+          <p>{c.callout.text}</p>
+        </div>
+      ) : null}
+      {c.keyPoints.length ? (
+        <div className="max-w-3xl">
+          <p className="font-mono text-[11px] uppercase tracking-wider text-mut">Key points</p>
+          <ul className="mt-2 space-y-1.5">
+            {c.keyPoints.map((k) => (
+              <li key={k} className="flex gap-2 text-sm text-ink">
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
+                {k}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {exercise ? (
+        <div className="max-w-3xl rounded-lg border border-fund/30 bg-fund-soft p-3.5">
+          <p className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-mut">
+            <ClipboardCheck className="h-3.5 w-3.5" /> Exercise
+          </p>
+          <p className="mt-1.5 text-sm text-ink">{exercise.slice(EXERCISE_PREFIX.length)}</p>
+        </div>
+      ) : null}
+      {c.checkpoint ? (
+        <div className="max-w-3xl">
+          <p className="font-mono text-[11px] uppercase tracking-wider text-mut">Checkpoint</p>
+          <p className="mt-1.5 text-sm font-medium text-ink">{c.checkpoint.stem}</p>
+          <ul className="mt-2 space-y-1.5">
+            {c.checkpoint.options.map((o) => {
+              const right = c.checkpoint!.correctOptionIds.includes(o.id);
+              return (
+                <li
+                  key={o.id}
+                  className={cn('flex gap-2.5 rounded-lg border px-3 py-2 text-sm', right ? 'border-good/40 bg-good-soft' : 'border-line')}
+                >
+                  <span className="font-mono text-xs uppercase text-mut">{o.id}</span>
+                  <span className="flex-1 text-ink">{o.label}</span>
+                  {right ? <Check className="h-4 w-4 shrink-0 text-good" aria-label="Correct answer" /> : null}
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-2 text-xs leading-relaxed text-mut">{c.checkpoint.explanation}</p>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -85,7 +85,7 @@ export async function GET(request: Request) {
   );
 
   try {
-    const fields = ['user_id', 'app_id', 'startup_name', 'final_score', 'band', 'country', 'region', 'city', 'created_at'];
+    const fields = ['user_id', 'app_id', 'startup_name', 'final_score', 'band', 'scores', 'country', 'region', 'city', 'created_at'];
     // Filtered lists sort in memory so no composite (app_id, created_at) index is needed.
     const reports = appId
       ? (await rows<ReportRow>(col('reports').where('app_id', '==', appId).select(...fields)))

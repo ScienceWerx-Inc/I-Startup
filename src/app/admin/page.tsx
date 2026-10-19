@@ -25,7 +25,7 @@ export default async function AdminPage() {
         </h1>
         <p className="mt-1 text-sm text-mut">
           Signed in as <span className="font-mono">{user}</span>. Founders, their onboarding answers,
-          reports, payments and system health.
+          reports and feedback, generated courses, payments and system health.
         </p>
         <div className="mt-6">
           <AdminDashboard />

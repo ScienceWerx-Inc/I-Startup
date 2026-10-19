@@ -23,7 +23,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       rows<ReportRow>(
         col('reports')
           .where('user_id', '==', id)
-          .select('app_id', 'startup_name', 'final_score', 'band', 'country', 'region', 'city', 'created_at'),
+          .select('app_id', 'startup_name', 'final_score', 'band', 'scores', 'country', 'region', 'city', 'created_at'),
       ),
       rows<PurchaseRow>(col('purchases').where('user_id', '==', id)),
       listJobs(id),
@@ -33,7 +33,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       user: { ...user, last_login_at: user.last_login_at ?? null },
       reports: reports.sort(newestFirst),
       purchases: purchases.sort(newestFirst).map(({ user_id: _u, ...p }) => p),
-      courses: await listCourseCards(id, jobs),
+      courses: await listCourseCards(jobs),
     });
   } catch (error) {
     console.error('Failed to load user:', error);

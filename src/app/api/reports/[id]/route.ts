@@ -1,12 +1,17 @@
 import { sessionUserId } from '@/lib/account';
 import { currentAdmin, unauthorized } from '@/lib/admin-guard';
 import { col, isDatabaseConfigured, isId } from '@/lib/db';
+import { getJobById } from '@/lib/gap-course/service';
+import { entitlements } from '@/lib/payments';
 import type { ReportRow } from '@/lib/reports';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** GET /api/reports/:id — fetches one archived report (admin, or the founder who owns it). */
+/**
+ * GET /api/reports/:id — fetches one archived report (admin, or the founder who owns it).
+ * Admins also get `review`: what the founder had unlocked, and the course built from it.
+ */
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -33,7 +38,19 @@ export async function GET(
     if (!report || (!admin && report.user_id !== userId)) {
       return Response.json({ error: 'Report not found.' }, { status: 404 });
     }
-    return Response.json({ report });
+    if (!admin) return Response.json({ report });
+
+    const [access, job] = await Promise.all([
+      report.user_id ? entitlements(report.user_id) : null,
+      getJobById(report.id),
+    ]);
+    return Response.json({
+      report,
+      review: {
+        access,
+        course: job ? { courseId: job.course_id, status: job.status, title: job.title ?? null } : null,
+      },
+    });
   } catch (error) {
     console.error('Failed to fetch iSTARTUP report:', error);
     return Response.json({ error: 'Failed to fetch report.' }, { status: 500 });

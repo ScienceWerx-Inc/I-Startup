@@ -108,7 +108,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cou
                 }
               : null,
             content: c
-              ? { body: c.body ?? '', keyPoints: c.keyPoints ?? [], callout: c.callout ?? null, checkpoint: c.checkpoint ?? null }
+              ? {
+                  body: c.body ?? '',
+                  keyPoints: c.keyPoints ?? [],
+                  callout: c.callout ?? null,
+                  diagram: c.diagram ?? null,
+                  checkpoint: c.checkpoint ?? null,
+                }
               : null,
           };
         }),

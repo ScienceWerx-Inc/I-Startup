@@ -217,6 +217,7 @@ export async function writeLesson(userId: string, reportId: string, lessonId: st
       lesson,
       previousTitles: order.slice(0, index).map((x) => x.lesson.title),
       nextTitle: order[index + 1]?.lesson.title,
+      isWorkshop: module.lessons.length > 1 && module.lessons[module.lessons.length - 1].id === lessonId,
     });
     const content: Omit<LessonContent, 'createdAt' | 'updatedAt' | 'version'> = {
       id: lessonContentId(lessonId),
@@ -227,6 +228,7 @@ export async function writeLesson(userId: string, reportId: string, lessonId: st
       attachmentAssetIds: [],
       keyPoints: generated.keyPoints,
       callout: generated.callout,
+      ...(generated.mermaid ? { diagram: generated.mermaid } : {}),
       checkpoint: {
         stem: generated.checkpoint.stem,
         options: generated.checkpoint.options,

@@ -206,6 +206,7 @@ interface CourseLesson {
     body: string;
     keyPoints: string[];
     callout: { kind: 'warning' | 'note'; text: string } | null;
+    diagram: string | null;
     checkpoint: LessonCheckpoint | null;
   } | null;
 }
@@ -1408,7 +1409,10 @@ function LessonReview({ lesson }: { lesson: CourseLesson }) {
     <div className="border-t border-line bg-paper/60 px-5 py-6 sm:px-7">
       <div className="max-w-3xl">
         <p className="mb-5 text-sm italic text-mut">{lesson.brief}</p>
-        <LessonBody content={{ body: c.body, keyPoints: c.keyPoints, callout: c.callout ?? undefined }} />
+        <LessonBody
+          content={{ body: c.body, keyPoints: c.keyPoints, callout: c.callout ?? undefined, diagram: c.diagram ?? undefined }}
+          title={lesson.title}
+        />
         {cp ? (
           <div className="mt-6 rounded-card bg-surface p-6 sm:p-8">
             <p className="eyebrow">Check yourself · {lesson.answer ? (lesson.answer.correct ? 'founder got it right' : 'founder got it wrong') : 'not answered yet'}</p>

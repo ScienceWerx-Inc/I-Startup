@@ -50,7 +50,7 @@ export interface GapModule {
   percent: number;
   level: string;
   focus: GapFocus[];
-  /** 2 or 3. */
+  /** 3 or 4: a teaching lesson per gap in focus (at least two), then the module's hands-on workshop. */
   lessonCount: number;
 }
 
@@ -100,7 +100,7 @@ export function planFromReport(report: IStartupReport): GapPlan {
         action: question.action,
         recoverablePoints: Math.round(recoverable * 10) / 10,
       })),
-      lessonCount: Math.min(3, Math.max(2, picked.length)),
+      lessonCount: Math.max(2, picked.length) + 1,
     };
   });
 

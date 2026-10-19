@@ -30,8 +30,8 @@ describe('planFromAnswers', () => {
   it('focuses each module on its own weakest questions with 2–3 lessons', () => {
     const plan = planFromAnswers(profile, answersWith({ market: 2 }));
     for (const m of plan.modules) {
-      expect(m.lessonCount).toBeGreaterThanOrEqual(2);
-      expect(m.lessonCount).toBeLessThanOrEqual(3);
+      // A teaching lesson per gap (at least two), plus the closing workshop.
+      expect(m.lessonCount).toBe(Math.max(2, m.focus.length) + 1);
       expect(m.focus.length).toBeGreaterThan(0);
       expect(m.focus.length).toBeLessThanOrEqual(3);
       for (const f of m.focus) {

@@ -1,13 +1,29 @@
 import { z } from 'genkit';
 
 import { ai } from '@/ai/genkit';
+import { normalizeFlowchart } from '@/lib/lessons/mermaid-source';
+import { toPlainParagraphs } from '@/lib/lessons/plain-prose';
+
 import type { GapFocus, GapModule, GapPlan } from './plan';
 
 /**
  * The two model calls behind a gap-closing course: one outline, then one call per lesson.
  * Both use structured output, and the code — not the model — decides how many modules
  * and lessons there are (see plan.ts); the outline is clamped to that shape afterwards.
+ *
+ * The writing rules are ScienceWerx's course generator's (generateCourseOutline and
+ * generateLessonBody there): briefs that name a misconception, lessons ordered by
+ * dependency, worked examples, "what is NOT true", lengths from reading time, an optional
+ * diagram, and a hands-on workshop to close each module.
  */
+
+/** Prose is read at roughly this rate, which is how a lesson's length is derived. */
+export const WORDS_PER_MINUTE = 160;
+const MIN_LESSON_MIN = 6;
+const MAX_LESSON_MIN = 14;
+
+/** Words to aim for, given how long the founder is expected to spend. */
+export const targetWordsFor = (durationMin: number) => Math.max(600, Math.round(durationMin * WORDS_PER_MINUTE));
 
 /* ───────────────────────────────── outline ───────────────────────────────── */
 
@@ -22,9 +38,14 @@ const OutlineSchema = z.object({
       lessons: z.array(
         z.object({
           title: z.string().describe('A claim or a task, max 70 chars, never a bare topic'),
-          brief: z.string().describe('2–3 sentences: what this lesson teaches and the misconception it corrects'),
-          focusQuestionIds: z.array(z.string()).describe('Which of the module\'s gap ids this lesson closes'),
-          durationMin: z.number().int().min(4).max(12),
+          brief: z
+            .string()
+            .describe(
+              'Two to four sentences stating exactly what this lesson teaches, in what order, and the one thing ' +
+                'founders commonly get wrong about it. This is the ONLY instruction the writer of the lesson receives.',
+            ),
+          focusQuestionIds: z.array(z.string()).describe("Which of the module's gap ids this lesson closes"),
+          durationMin: z.number().int().min(MIN_LESSON_MIN).max(MAX_LESSON_MIN).describe('Minutes the founder spends on it'),
         }),
       ),
     }),
@@ -69,7 +90,7 @@ export async function generateOutline(plan: GapPlan): Promise<CourseOutline> {
   const { output } = await ai.generate({
     output: { schema: OutlineSchema },
     config: { temperature: 0.6 },
-    prompt: `You design short, practical courses for startup founders. This founder just took the iSTARTUP readiness assessment; build the course that closes the specific gaps it found.
+    prompt: `You are designing the structure of a practical, personalised course for a startup founder. They just took the iSTARTUP investment-readiness assessment; this course closes the specific gaps it found. The founder will work through it lesson by lesson and be assessed against it, so it has to hold up as a plan rather than read well as a pitch.
 
 THE STARTUP
 ${describeStartup(plan)}
@@ -77,13 +98,19 @@ ${describeStartup(plan)}
 THE MODULES — produce exactly these ${plan.modules.length} modules, in this order, with exactly the lesson count stated for each:
 ${plan.modules.map(describeModule).join('\n\n')}
 
-RULES
-- Every lesson targets at least one listed gap id, and every gap id is covered by some lesson in its module.
-- Order lessons so each builds on the one before; the last lesson of a module is the most hands-on.
-- Lessons are about THIS startup's situation (sector, stage, team), not generic advice.
-- Each brief names the misconception the lesson corrects.
-- Plain text only. Invent no statistics, studies, or named sources.
-- Do not produce quiz, test, or recap lessons.`,
+HOW TO BUILD THE OUTLINE
+- Order by dependency, not by importance. A lesson may only assume what earlier lessons have taught; the course reads as one path, module after module.
+- Every lesson brief must name one thing founders get wrong. "Explains unit economics" is not a brief. "Shows that gross margin, not revenue, decides how far each funding round goes; founders usually report revenue growth and assume investors will infer the rest, and this corrects that" is a brief. The writer of the lesson sees nothing else, so anything you leave vague will be written vaguely.
+- Titles are claims or tasks: "Price from the value you create, not your costs", "Write your 18-month hiring plan" — never "Introduction", "Overview" or a bare topic.
+- Every lesson closes at least one listed gap id, and every gap id is covered by some lesson in its module. Start from where the founder is (their answer) and move them to the levels above it.
+- The LAST lesson of every module is a hands-on workshop: the founder produces something real for their startup (a plan, a model, a one-pager, a list of names). Its title is the task.
+- Lessons are about THIS startup's situation (sector, stage, team, funding), not generic startup advice.
+- durationMin is how long the founder spends, between ${MIN_LESSON_MIN} and ${MAX_LESSON_MIN} minutes. Reading runs about ${WORDS_PER_MINUTE} words a minute; a workshop includes the time to do the task.
+
+HARD RULES
+- Plain text everywhere. No markdown, no asterisks, no headings inside any field.
+- Invent no statistics, studies, dates or quotations. If a claim would need a citation, teach the idea without the number.
+- Do not produce quiz, test or recap lessons; those are handled separately.`,
   });
   if (!output) throw new Error('The model returned no outline.');
   return clampOutline(output, plan);
@@ -101,7 +128,7 @@ function clampOutline(outline: CourseOutline, plan: GapPlan): CourseOutline {
       return {
         ...l,
         focusQuestionIds: focus.length ? focus : [pm.focus[j % pm.focus.length].questionId],
-        durationMin: Math.min(12, Math.max(4, Math.round(l.durationMin))),
+        durationMin: Math.min(MAX_LESSON_MIN, Math.max(MIN_LESSON_MIN, Math.round(l.durationMin))),
       };
     });
     return { key: pm.key, title: m.title || pm.title, lessons };
@@ -116,6 +143,12 @@ const LessonSchema = z.object({
     .string()
     .describe('The lesson, plain-text paragraphs separated by a blank line. No markdown, no headings, no bullet lists.'),
   keyPoints: z.array(z.string()).min(3).max(5).describe('What the founder should still remember a week later'),
+  mermaid: z
+    .string()
+    .optional()
+    .describe(
+      'Mermaid `graph LR` or `graph TD` source for a small diagram, ONLY when the lesson describes a process, a flow or a structure. Omit otherwise.',
+    ),
   callout: z.object({
     kind: z.enum(['warning', 'note']),
     text: z.string().describe('One short aside, usually the mistake this lesson exists to prevent'),
@@ -124,10 +157,12 @@ const LessonSchema = z.object({
     .string()
     .describe('A concrete task the founder does for their own startup this week, with a clear deliverable. 2–4 sentences.'),
   checkpoint: z.object({
-    stem: z.string().describe('A scenario question that tests understanding, not recall'),
+    stem: z.string().describe('A scenario question about a startup like theirs that tests whether the IDEA landed, not recall'),
     options: z.array(z.object({ id: z.string(), label: z.string() })).length(4),
     correctOptionId: z.string(),
-    explanation: z.string().describe('Why the right answer is right and the most tempting wrong one is wrong'),
+    explanation: z
+      .string()
+      .describe('Addressed to the founder as "you": why the right answer is right and the most tempting wrong one is wrong'),
   }),
 });
 
@@ -140,40 +175,69 @@ export async function generateLesson(input: {
   lesson: { title: string; brief: string; focusQuestionIds: string[]; durationMin: number };
   previousTitles: string[];
   nextTitle?: string;
+  /** The module's closing workshop: the founder does something rather than reads. */
+  isWorkshop: boolean;
 }): Promise<GeneratedLesson> {
   const focus = input.module.focus.filter((f) => input.lesson.focusQuestionIds.includes(f.questionId));
-  const targetWords = Math.min(600, Math.max(300, input.lesson.durationMin * 70));
+  const targetWords = targetWordsFor(input.lesson.durationMin);
 
   const { output } = await ai.generate({
     output: { schema: LessonSchema },
     config: { temperature: 0.7 },
-    prompt: `You are writing one lesson of a personalised course for a startup founder, built from their iSTARTUP assessment.
+    prompt: `You are writing one lesson of a personalised course for a startup founder, built from their iSTARTUP investment-readiness assessment.
 
 THE STARTUP
 ${describeStartup(input.plan)}
 
 MODULE: ${input.moduleTitle} (their ${input.module.title} score: ${input.module.percent}%)
-LESSON: ${input.lesson.title}
-BRIEF: ${input.lesson.brief}
+THIS LESSON: ${input.lesson.title}
+
+WHAT IT MUST TEACH
+${input.lesson.brief}
 
 THE GAPS THIS LESSON CLOSES
 ${(focus.length ? focus : input.module.focus).map(describeFocus).join('\n')}
 
-${input.previousTitles.length ? `ALREADY TAUGHT (do not explain again): ${input.previousTitles.join(' | ')}` : 'This is the first lesson of the course.'}
-${input.nextTitle ? `NEXT LESSON (leave it for then): ${input.nextTitle}` : 'This is the last lesson of the course; end with momentum.'}
+${
+  input.previousTitles.length
+    ? `ALREADY TAUGHT, in order — assume all of it, and do not explain any of it again:\n${input.previousTitles.map((t) => `- ${t}`).join('\n')}`
+    : 'This is the first lesson of the course. Assume nothing beyond what a founder at this stage knows.'
+}
+${
+  input.nextTitle
+    ? `COMING NEXT: ${input.nextTitle}. Do not cover it; you may point at it in a closing sentence.`
+    : 'This is the last lesson of the course; end with momentum and the next step for their startup.'
+}
 
-WRITE
-- About ${targetWords} words of body, never more than ${targetWords + 150}. Open with the idea itself, not a preamble.
-- Start from where they are ("They answered: …") and show the concrete steps to the next level up.
-- Use their startup's situation in examples — sector, stage, team size.
-- One idea per paragraph. Plain text only: no markdown, asterisks, headings, or bullet lists.
-- Correct the misconception named in the brief.
-- Invent no statistics, studies, quotes, or named sources.
-- The checkpoint has exactly 4 options with ids "a", "b", "c", "d"; wrong options must be plausible.`,
+Write about ${targetWords} words of body.
+${
+  input.isWorkshop
+    ? `
+This is a WORKSHOP, the module's hands-on lesson. The founder is going to produce something for their startup, not read about it. Set up the task in steps, give them whatever they need to work from (a structure, the questions to answer, a worked example from a different startup), and say plainly what a good result looks like and the most common way it goes wrong. Do not do the task for them.
+`
+    : ''
+}
+HOW TO WRITE IT
+- Open with the thing itself. No throat-clearing, no "in this lesson we will". The first sentence should already be teaching.
+- One idea per paragraph, three to five sentences. Separate paragraphs with a blank line (two newline characters); never run the lesson together as one block.
+- Be concrete. A worked example beats a definition: show it with THIS startup's sector, stage and team. If you find yourself writing "it is important to", you have skipped the part that would have shown why.
+- Start from where they are (what they answered) and show the concrete steps to the next level up.
+- Correct the misconception the brief names, explicitly: say what founders usually assume, then what is actually the case.
+- Say what is NOT true, or what does not apply. A lesson that only lists benefits teaches someone to misuse the thing.
+- Plain text only. No markdown, no headings, no bullet characters, no bold. Blank lines are the only structure you have.
+- Invent no statistics, studies, dates, quotations or named sources. Teach the idea without the number.
+
+THE DIAGRAM: include \`mermaid\` ONLY if this lesson genuinely describes a process, a flow or a structure (a funnel, a hiring sequence, a fundraising timeline, how money moves). Use \`graph LR\` or \`graph TD\`, at most 8 nodes, short plain labels, one statement per line. A diagram of two boxes restating the title is worse than none; if in doubt, leave it out.
+
+THE EXERCISE: a concrete task the founder does for their own startup this week, with a clear deliverable.
+
+THE CHECKPOINT: one question about a situation like theirs, four options with ids "a", "b", "c", "d", exactly one right. It must test whether they understood the IDEA — a question answerable by recognising a phrase from the text tests nothing. Wrong options are things a founder who half-followed would actually pick, not obvious throwaways.`,
   });
   if (!output) throw new Error('The model returned no lesson.');
+  const diagram = output.mermaid ? normalizeFlowchart(output.mermaid) : '';
   return {
     ...output,
+    mermaid: /^(graph|flowchart)\s/i.test(diagram) ? diagram : undefined,
     body: toPlainParagraphs(output.body),
     checkpoint: {
       ...output.checkpoint,
@@ -182,18 +246,4 @@ WRITE
         : output.checkpoint.options[0].id,
     },
   };
-}
-
-/** Strips markdown the model slips in anyway, and normalises paragraph breaks. */
-function toPlainParagraphs(text: string): string {
-  return text
-    .replace(/\r/g, '')
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/\*\*(.+?)\*\*/g, '$1')
-    .replace(/__(.+?)__/g, '$1')
-    .replace(/^\s*[-*•]\s+/gm, '')
-    .split(/\n\s*\n/)
-    .map((p) => p.replace(/\s*\n\s*/g, ' ').trim())
-    .filter(Boolean)
-    .join('\n\n');
 }

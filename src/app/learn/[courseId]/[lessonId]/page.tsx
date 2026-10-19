@@ -7,6 +7,7 @@ import { sessionUserId } from '@/lib/account';
 import { getCourseView } from '@/lib/gap-course/view';
 import { Checkpoint, CompleteLesson } from '@/modules/gap-course/lesson-actions';
 import { LessonBody } from '@/modules/gap-course/lesson-body';
+import { LessonReader } from '@/modules/lessons/lesson-reader';
 import { Eyebrow } from '@/modules/istartup-score/components/chrome';
 
 export const dynamic = 'force-dynamic';
@@ -44,17 +45,20 @@ export default async function LessonPage({ params }: { params: Promise<{ courseI
       </Eyebrow>
       <h1 className="mt-2 text-3xl font-semibold leading-tight tracking-tight text-ink">{lesson.title}</h1>
 
-      <div className="mt-8">
-        <LessonBody content={content} />
-      </div>
-
-      {content.checkpoint ? (
+      {/* Read or Slides: the same lesson two ways; the choice is remembered in the browser. */}
+      <LessonReader content={content} title={lesson.title} finishTargetId="lesson-complete" record={{ courseId, lessonId }}>
         <div className="mt-6">
-          <Checkpoint checkpoint={content.checkpoint} record={{ courseId, lessonId }} />
+          <LessonBody content={content} title={lesson.title} />
         </div>
-      ) : null}
 
-      <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6">
+        {content.checkpoint ? (
+          <div className="mt-6">
+            <Checkpoint checkpoint={content.checkpoint} record={{ courseId, lessonId }} />
+          </div>
+        ) : null}
+      </LessonReader>
+
+      <div id="lesson-complete" className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6">
         {prev ? (
           <Link href={`/learn/${courseId}/${prev.lesson.id}`} className="text-sm text-mut hover:text-ink">
             ← {prev.lesson.title}

@@ -8,10 +8,30 @@ import { Button } from '@/components/ui/button';
 import type { LessonCheckpoint } from '@/features/lms/domain';
 import { cn } from '@/lib/utils';
 
-/** The ungraded "did that land?" question. Its answer is not secret: it never counts. */
-export function Checkpoint({ checkpoint }: { checkpoint: LessonCheckpoint }) {
+/**
+ * The "did that land?" question. Its answer is not secret: it is revealed on the pick and
+ * never gates anything. With `record`, the first pick is saved as the course score admins see.
+ */
+export function Checkpoint({
+  checkpoint,
+  record,
+}: {
+  checkpoint: LessonCheckpoint;
+  record?: { courseId: string; lessonId: string };
+}) {
   const [picked, setPicked] = useState<string | null>(null);
   const right = picked ? checkpoint.correctOptionIds.includes(picked) : false;
+
+  const pick = (optionId: string) => {
+    setPicked(optionId);
+    if (!record) return;
+    // Best effort: a failed save must never get in the founder's way.
+    fetch('/api/course/checkpoint', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...record, optionId }),
+    }).catch(() => {});
+  };
 
   return (
     <div className="rounded-card bg-surface p-6 sm:p-8">
@@ -26,7 +46,7 @@ export function Checkpoint({ checkpoint }: { checkpoint: LessonCheckpoint }) {
               <button
                 type="button"
                 disabled={shown}
-                onClick={() => setPicked(o.id)}
+                onClick={() => pick(o.id)}
                 className={cn(
                   'flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-left text-sm transition-colors',
                   !shown && 'border-line hover:border-brand hover:bg-brand-soft',

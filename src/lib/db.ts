@@ -25,6 +25,8 @@ export const COLLECTIONS = {
   config: 'istartup_config',
   /** `{reportId}` → the generation job for that report's gap-closing course. */
   courseJobs: 'istartup_course_jobs',
+  /** `{courseId}_{lessonId}` → a founder's first answer to that lesson's checkpoint (the course score). */
+  checkpointAnswers: 'istartup_checkpoint_answers',
 } as const;
 
 export function isDatabaseConfigured(): boolean {

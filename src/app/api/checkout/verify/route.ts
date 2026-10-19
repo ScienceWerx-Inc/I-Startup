@@ -1,5 +1,5 @@
 import { currentUser } from '@/lib/account';
-import { entitlements, markPaid, paymentsMode, retrieveStripeCheckout } from '@/lib/payments';
+import { courseAccess, markPaid, paymentsMode, reportAccess, retrieveStripeCheckout } from '@/lib/payments';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,7 +20,8 @@ export async function GET(request: Request) {
         await markPaid(session.id);
       }
     }
-    return Response.json({ access: await entitlements(user.id) });
+    const [report, course] = await Promise.all([reportAccess(user.id), courseAccess(user.id)]);
+    return Response.json({ access: { report, course } });
   } catch (error) {
     console.error('Checkout verification failed:', error);
     return Response.json({ error: 'Could not confirm your payment yet.' }, { status: 502 });

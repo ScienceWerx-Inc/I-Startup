@@ -7,27 +7,27 @@ import {
   BarChart3,
   Check,
   Circle,
-  ClipboardCheck,
   CreditCard,
   Database,
   FileText,
   Globe2,
   GraduationCap,
-  Info,
   ListOrdered,
   LogOut,
   RefreshCw,
   Settings2,
   Trash2,
-  TriangleAlert,
   Users,
+  XCircle,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import type { LessonCheckpoint } from '@/features/lms/domain';
 import type { GapPlan } from '@/lib/gap-course/plan';
-import { CERTIFICATE_NAME, EXERCISE_PREFIX } from '@/lib/gap-course/shared';
+import { CERTIFICATE_NAME } from '@/lib/gap-course/shared';
 import { cn } from '@/lib/utils';
+import { CertificateCard } from '@/modules/gap-course/certificate-card';
+import { LessonBody } from '@/modules/gap-course/lesson-body';
 import { QUESTIONS, type StartupProfile } from '@/modules/istartup-score/assessment/bank';
 import { computeReport } from '@/modules/istartup-score/assessment/scoring';
 import { Panel } from '@/modules/istartup-score/components/chrome';
@@ -174,8 +174,16 @@ interface CourseCard {
   certificateExpiresAt: string | null;
   createdAt: string;
   updatedAt: string;
+  courseScore?: CourseScore | null;
   user_email?: string | null;
   user_name?: string | null;
+}
+
+/** Checkpoints the founder got right on their first pick. */
+interface CourseScore {
+  correct: number;
+  answered: number;
+  percent: number | null;
 }
 
 interface CourseLesson {
@@ -186,6 +194,8 @@ interface CourseLesson {
   status: 'pending' | 'running' | 'done' | 'error';
   error: string | null;
   completed: boolean;
+  completedAt: number | null;
+  answer: { optionId: string; correct: boolean; answeredAt: string } | null;
   content: {
     body: string;
     keyPoints: string[];
@@ -210,15 +220,25 @@ interface CourseDetail {
     updatedAt: string;
   };
   plan: GapPlan;
+  score: CourseScore & { checkpoints: number };
   enrollment: {
     status: string;
     source: string;
     startedAt: number;
     lastAccessedAt: number;
     completedAt: number | null;
+    lastLessonId: string | null;
+    curriculumVersion: number;
   } | null;
   progress: { percent: number; completed: number; total: number; timeSpentSec: number } | null;
-  certificate: { code: string; issuedAt: number; expiresAt: string; revokedAt: number | null } | null;
+  certificate: {
+    code: string;
+    learnerName: string;
+    courseTitle: string;
+    issuedAt: number;
+    expiresAt: string;
+    revokedAt: number | null;
+  } | null;
   modules: Array<{ id: string; key: string; title: string; lessons: CourseLesson[] }>;
 }
 
@@ -259,6 +279,8 @@ const COURSE_STATUS: Record<CourseCard['status'], { label: string; tone: 'good' 
 const msDate = (ms: number | null | undefined) => (ms ? new Date(ms).toISOString() : null);
 const duration = (sec: number) =>
   sec >= 3600 ? `${Math.floor(sec / 3600)}h ${Math.round((sec % 3600) / 60)}m` : `${Math.max(0, Math.round(sec / 60))}m`;
+
+const scoreText = (s: CourseScore | null | undefined) => (s?.percent != null ? `${s.percent}%` : '—');
 
 /** The report's weakest dimension, from its stored scores. */
 function weakest(scores: ReportSummary['scores']) {
@@ -659,7 +681,9 @@ function FounderDetail({ id }: { id: string }) {
                 <div className="shrink-0 text-right text-sm">
                   {c.status === 'ready' ? (
                     <>
-                      <p className="font-mono font-semibold text-ink">{c.percent}% complete</p>
+                      <p className="font-mono font-semibold text-ink">
+                        {c.percent}% complete · score {scoreText(c.courseScore)}
+                      </p>
                       <p className="text-xs text-mut">{c.certificateId
                           ? `411 Certificate ${c.certificateId}${c.certificateExpiresAt ? ` · valid until ${date(c.certificateExpiresAt)}` : ''}`
                           : `${c.lessonsTotal} lessons`}</p>
@@ -1002,7 +1026,7 @@ function CoursesTab() {
         />
         <ErrorNote error={error} />
         {data ? (
-          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
             <Tile label="Generated" value={all.length} sub={`${ready.length} ready`} />
             <Tile
               label="In progress / failed"
@@ -1013,6 +1037,14 @@ function CoursesTab() {
               label="Avg completion"
               value={ready.length ? `${Math.round(ready.reduce((a, c) => a + c.percent, 0) / ready.length)}%` : '—'}
               sub={`${ready.filter((c) => c.percent > 0).length} started`}
+            />
+            <Tile
+              label="Avg course score"
+              value={(() => {
+                const scored = all.filter((c) => c.courseScore?.percent != null);
+                return scored.length ? `${Math.round(scored.reduce((a, c) => a + c.courseScore!.percent!, 0) / scored.length)}%` : '—';
+              })()}
+              sub="Checkpoints right first time"
             />
             <Tile label={`${CERTIFICATE_NAME}s`} value={all.filter((c) => c.certificateId).length} sub="Earned" />
           </div>
@@ -1025,7 +1057,7 @@ function CoursesTab() {
             <p className="text-sm text-mut">{q ? 'No courses match.' : 'No courses generated yet.'}</p>
           ) : (
             <TableFrame>
-              <table className="w-full min-w-[900px] text-left text-sm">
+              <table className="w-full min-w-[980px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-line">
                     <th className={th}>Course</th>
@@ -1034,6 +1066,7 @@ function CoursesTab() {
                     <th className={th}>Status</th>
                     <th className={cn(th, 'text-right')}>Lessons</th>
                     <th className={cn(th, 'text-right')}>Progress</th>
+                    <th className={cn(th, 'text-right')}>Course score</th>
                     <th className={th}>Certificate</th>
                     <th className={cn(th, 'pr-0 text-right')}>Created</th>
                   </tr>
@@ -1070,6 +1103,14 @@ function CoursesTab() {
                         {c.lessonsWritten}/{c.lessonsTotal || '?'}
                       </td>
                       <td className={cn(td, 'text-right font-mono font-semibold tabular')}>{c.status === 'ready' ? `${c.percent}%` : '—'}</td>
+                      <td className={cn(td, 'text-right font-mono tabular')}>
+                        <span className="font-semibold text-ink">{scoreText(c.courseScore)}</span>
+                        {c.courseScore ? (
+                          <span className="block text-[11px] text-mut">
+                            {c.courseScore.correct}/{c.courseScore.answered} right
+                          </span>
+                        ) : null}
+                      </td>
                       <td className={cn(td, 'text-mut')}>
                         {c.certificateId ? (
                           <span className="font-mono text-xs text-ink">{c.certificateId.slice(0, 14)}</span>
@@ -1094,7 +1135,8 @@ function CoursesTab() {
 
 function CourseDetailView({ id }: { id: string }) {
   const { data, error, loading, reload } = useAdminData<CourseDetail>(`/api/admin/courses/${encodeURIComponent(id)}`);
-  const [open, setOpen] = useState<Set<string>>(new Set());
+  // The full course reads open; an admin collapses what they've finished reviewing.
+  const [closed, setClosed] = useState<Set<string>>(new Set());
 
   const back = (
     <Button variant="ghost" size="sm" onClick={() => window.history.back()}>
@@ -1104,25 +1146,26 @@ function CourseDetailView({ id }: { id: string }) {
   if (error) return <div className="space-y-4">{back}<ErrorNote error={error} /></div>;
   if (!data) return <div className="space-y-4">{back}<p className="text-sm text-mut">{loading ? 'Loading…' : '—'}</p></div>;
 
-  const { founder, course, plan, enrollment, progress, certificate, modules } = data;
+  const { founder, course, plan, score, enrollment, progress, certificate, modules } = data;
   const lessons = modules.flatMap((m) => m.lessons);
-  const allOpen = lessons.length > 0 && lessons.every((l) => open.has(l.id));
+  const lessonNumber = new Map(lessons.map((l, i) => [l.id, i + 1]));
+  const allClosed = lessons.length > 0 && lessons.every((l) => closed.has(l.id));
+  const lastLesson = enrollment?.lastLessonId ? lessons.find((l) => l.id === enrollment.lastLessonId) : null;
   const toggle = (lessonId: string) =>
-    setOpen((prev) => {
+    setClosed((prev) => {
       const next = new Set(prev);
       if (next.has(lessonId)) next.delete(lessonId);
       else next.add(lessonId);
       return next;
     });
-  const lessonNumber = new Map(lessons.map((l, i) => [l.id, i + 1]));
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         {back}
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => setOpen(allOpen ? new Set() : new Set(lessons.map((l) => l.id)))}>
-            {allOpen ? 'Collapse all lessons' : 'Expand all lessons'}
+          <Button size="sm" variant="outline" onClick={() => setClosed(allClosed ? new Set() : new Set(lessons.map((l) => l.id)))}>
+            {allClosed ? 'Expand all lessons' : 'Collapse all lessons'}
           </Button>
           <ReloadButton onClick={reload} loading={loading} />
         </div>
@@ -1151,7 +1194,27 @@ function CourseDetailView({ id }: { id: string }) {
           <p className="mt-4 rounded-lg bg-warn-soft p-3 text-sm text-warn">Generation note: {course.error}</p>
         ) : null}
 
-        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-6">
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Tile
+            label="Course score"
+            value={scoreText(score)}
+            sub={
+              score.answered
+                ? `${score.correct} of ${score.answered} checkpoints right first time`
+                : `No checkpoint answered yet · ${score.checkpoints} in course`
+            }
+          />
+          <Tile
+            label="Progress"
+            value={progress ? `${progress.percent}%` : '—'}
+            sub={progress ? `${progress.completed} of ${progress.total} lessons complete` : enrollment ? 'Not started' : 'Not enrolled'}
+          />
+          <Tile
+            label={CERTIFICATE_NAME}
+            value={certificate ? (certificate.revokedAt ? 'Revoked' : new Date(certificate.expiresAt) < new Date() ? 'Expired' : 'Earned') : 'Not yet'}
+            sub={certificate ? `${certificate.code} · until ${date(certificate.expiresAt)}` : 'Earned on completing every lesson'}
+          />
+          <Tile label="Assessment score" value={`${plan.finalScore} / 500`} sub={plan.band} />
           <Tile
             label="Status"
             value={COURSE_STATUS[course.status].label}
@@ -1160,25 +1223,60 @@ function CourseDetailView({ id }: { id: string }) {
           <Tile
             label="Lessons written"
             value={`${lessons.filter((l) => l.status === 'done').length} / ${lessons.length}`}
-            sub={`${lessons.reduce((a, l) => a + l.durationMin, 0)} min total`}
-          />
-          <Tile
-            label="Progress"
-            value={progress ? `${progress.percent}%` : '—'}
-            sub={progress ? `${progress.completed} of ${progress.total} lessons` : enrollment ? 'Not started' : 'Not enrolled'}
+            sub={`${lessons.reduce((a, l) => a + l.durationMin, 0)} min of reading`}
           />
           <Tile label="Time spent" value={progress ? duration(progress.timeSpentSec) : '—'} sub="Tracked in lessons" />
           <Tile
             label="Last active"
             value={enrollment ? date(msDate(enrollment.lastAccessedAt)) : '—'}
-            sub={enrollment ? `Enrolled ${date(msDate(enrollment.startedAt))} · ${enrollment.source}` : 'Not enrolled'}
-          />
-          <Tile
-            label={CERTIFICATE_NAME}
-            value={certificate ? (certificate.revokedAt ? 'Revoked' : 'Earned') : '—'}
-            sub={certificate ? `${certificate.code} · until ${date(certificate.expiresAt)}` : 'Not earned yet'}
+            sub={lastLesson ? `On lesson ${lessonNumber.get(lastLesson.id)}: ${lastLesson.title}` : dateTime(msDate(enrollment?.lastAccessedAt))}
           />
         </div>
+
+        <dl className="mt-5 grid gap-x-8 gap-y-2 border-t border-line pt-4 text-sm sm:grid-cols-2">
+          {[
+            ['Founder', founder ? `${founder.full_name || '—'} · ${founder.email}` : '—'],
+            ['Startup', plan.startup.name || '—'],
+            ['Enrolled', enrollment ? `${dateTime(msDate(enrollment.startedAt))} (${enrollment.source})` : 'Not enrolled'],
+            ['Enrollment status', enrollment?.status ?? '—'],
+            ['Completed', enrollment?.completedAt ? dateTime(msDate(enrollment.completedAt)) : 'Not yet'],
+            ['Certificate issued', certificate ? dateTime(msDate(certificate.issuedAt)) : '—'],
+            ['Generated', dateTime(course.createdAt)],
+            ['Last updated', dateTime(course.updatedAt)],
+            ['Curriculum version', enrollment ? `v${enrollment.curriculumVersion}` : '—'],
+            ['Report', course.reportId],
+          ].map(([k, v]) => (
+            <div key={k} className="flex gap-3 border-b border-line pb-2">
+              <dt className="w-36 shrink-0 text-xs text-mut">{k}</dt>
+              <dd className="min-w-0 break-words text-ink">{v}</dd>
+            </div>
+          ))}
+        </dl>
+      </Panel>
+
+      <Panel>
+        <h3 className="text-lg font-semibold text-ink">{CERTIFICATE_NAME}</h3>
+        {certificate ? (
+          <>
+            <p className="mt-0.5 text-sm text-mut">The certificate exactly as the founder holds it.</p>
+            <div className="mt-4">
+              <CertificateCard
+                learnerName={certificate.learnerName}
+                courseTitle={certificate.courseTitle}
+                startupName={plan.startup.name}
+                modules={plan.modules.map((m) => m.title)}
+                code={certificate.code}
+                issuedAt={certificate.issuedAt}
+                revokedAt={certificate.revokedAt}
+              />
+            </div>
+          </>
+        ) : (
+          <p className="mt-1 text-sm text-mut">
+            Not earned yet: {progress ? `${progress.completed} of ${progress.total}` : `0 of ${lessons.length}`} lessons
+            complete. It is issued when the founder completes the last one.
+          </p>
+        )}
       </Panel>
 
       <Panel>
@@ -1216,12 +1314,15 @@ function CourseDetailView({ id }: { id: string }) {
       {modules.map((m, mi) => (
         <Panel key={m.id} className="p-0 sm:p-0">
           <div className="border-b border-line px-5 py-4 sm:px-7">
-            <p className="font-mono text-[11px] uppercase tracking-wider text-mut">Module {mi + 1}</p>
+            <p className="font-mono text-[11px] uppercase tracking-wider text-mut">
+              Module {mi + 1}
+              {plan.modules[mi] ? ` · ${plan.modules[mi].title} · founder scored ${plan.modules[mi].percent}%` : ''}
+            </p>
             <h3 className="mt-0.5 text-lg font-semibold text-ink">{m.title}</h3>
           </div>
           <ol>
             {m.lessons.map((l) => {
-              const expanded = open.has(l.id);
+              const expanded = !closed.has(l.id);
               return (
                 <li key={l.id} className="border-b border-line last:border-0">
                   <button
@@ -1236,10 +1337,13 @@ function CourseDetailView({ id }: { id: string }) {
                       <Circle className="mt-0.5 h-4 w-4 shrink-0 text-line-strong" aria-label="Not completed" />
                     )}
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium text-ink">
-                        {lessonNumber.get(l.id)}. {l.title}
+                      <span className="block text-[15px] font-semibold text-ink">
+                        Lesson {lessonNumber.get(l.id)}. {l.title}
                       </span>
-                      <span className="mt-0.5 block text-xs text-mut">{l.brief}</span>
+                      <span className="mt-0.5 block text-xs text-mut">
+                        {l.completed ? `Completed ${dateTime(msDate(l.completedAt))}` : 'Not completed'}
+                        {l.answer ? ` · checkpoint ${l.answer.correct ? 'right' : 'wrong'}` : ''}
+                      </span>
                     </span>
                     <span className="flex shrink-0 flex-col items-end gap-1">
                       {l.status !== 'done' ? (
@@ -1259,7 +1363,7 @@ function CourseDetailView({ id }: { id: string }) {
   );
 }
 
-/** One lesson exactly as written, with the checkpoint's answer shown. */
+/** One lesson exactly as the founder reads it, then its checkpoint with the answer and their pick. */
 function LessonReview({ lesson }: { lesson: CourseLesson }) {
   const c = lesson.content;
   if (!c) {
@@ -1269,72 +1373,42 @@ function LessonReview({ lesson }: { lesson: CourseLesson }) {
       </p>
     );
   }
-  const paragraphs = c.body.split(/\n\s*\n/).filter(Boolean);
-  const exercise = paragraphs.find((p) => p.startsWith(EXERCISE_PREFIX));
-  const prose = paragraphs.filter((p) => p !== exercise);
-
+  const cp = c.checkpoint;
   return (
-    <div className="space-y-4 border-t border-line bg-paper/60 px-5 py-5 sm:px-7">
-      <div className="max-w-3xl space-y-3">
-        {prose.map((p, i) => (
-          <p key={i} className="text-sm leading-relaxed text-ink">
-            {p}
-          </p>
-        ))}
+    <div className="border-t border-line bg-paper/60 px-5 py-6 sm:px-7">
+      <div className="max-w-3xl">
+        <p className="mb-5 text-sm italic text-mut">{lesson.brief}</p>
+        <LessonBody content={{ body: c.body, keyPoints: c.keyPoints, callout: c.callout ?? undefined }} />
+        {cp ? (
+          <div className="mt-6 rounded-card bg-surface p-6 sm:p-8">
+            <p className="eyebrow">Check yourself · {lesson.answer ? (lesson.answer.correct ? 'founder got it right' : 'founder got it wrong') : 'not answered yet'}</p>
+            <p className="mt-2 text-[16px] font-medium leading-relaxed text-ink">{cp.stem}</p>
+            <ul className="mt-4 space-y-2">
+              {cp.options.map((o) => {
+                const right = cp.correctOptionIds.includes(o.id);
+                const theirs = lesson.answer?.optionId === o.id;
+                return (
+                  <li
+                    key={o.id}
+                    className={cn(
+                      'flex items-start gap-3 rounded-lg border px-4 py-3 text-sm',
+                      right ? 'border-good/40 bg-good-soft' : theirs ? 'border-risk/40 bg-risk-soft' : 'border-line',
+                    )}
+                  >
+                    <span className="font-mono text-xs uppercase text-mut">{o.id}</span>
+                    <span className="flex-1 text-ink">{o.label}</span>
+                    {theirs ? <span className="shrink-0 text-[11px] font-semibold text-ink">Founder&apos;s pick</span> : null}
+                    {right ? <Check className="h-4 w-4 shrink-0 text-good" aria-label="Correct answer" /> : null}
+                    {theirs && !right ? <XCircle className="h-4 w-4 shrink-0 text-risk" aria-label="Wrong answer" /> : null}
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="mt-4 text-sm leading-relaxed text-ink">{cp.explanation}</p>
+            {lesson.answer ? <p className="mt-2 text-xs text-mut">Answered {dateTime(lesson.answer.answeredAt)}</p> : null}
+          </div>
+        ) : null}
       </div>
-      {c.callout ? (
-        <div className={cn('flex max-w-3xl gap-2.5 rounded-lg p-3.5 text-sm text-ink', c.callout.kind === 'warning' ? 'bg-warn-soft' : 'bg-brand-soft')}>
-          {c.callout.kind === 'warning' ? (
-            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warn" />
-          ) : (
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
-          )}
-          <p>{c.callout.text}</p>
-        </div>
-      ) : null}
-      {c.keyPoints.length ? (
-        <div className="max-w-3xl">
-          <p className="font-mono text-[11px] uppercase tracking-wider text-mut">Key points</p>
-          <ul className="mt-2 space-y-1.5">
-            {c.keyPoints.map((k) => (
-              <li key={k} className="flex gap-2 text-sm text-ink">
-                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
-                {k}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-      {exercise ? (
-        <div className="max-w-3xl rounded-lg border border-fund/30 bg-fund-soft p-3.5">
-          <p className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-mut">
-            <ClipboardCheck className="h-3.5 w-3.5" /> Exercise
-          </p>
-          <p className="mt-1.5 text-sm text-ink">{exercise.slice(EXERCISE_PREFIX.length)}</p>
-        </div>
-      ) : null}
-      {c.checkpoint ? (
-        <div className="max-w-3xl">
-          <p className="font-mono text-[11px] uppercase tracking-wider text-mut">Checkpoint</p>
-          <p className="mt-1.5 text-sm font-medium text-ink">{c.checkpoint.stem}</p>
-          <ul className="mt-2 space-y-1.5">
-            {c.checkpoint.options.map((o) => {
-              const right = c.checkpoint!.correctOptionIds.includes(o.id);
-              return (
-                <li
-                  key={o.id}
-                  className={cn('flex gap-2.5 rounded-lg border px-3 py-2 text-sm', right ? 'border-good/40 bg-good-soft' : 'border-line')}
-                >
-                  <span className="font-mono text-xs uppercase text-mut">{o.id}</span>
-                  <span className="flex-1 text-ink">{o.label}</span>
-                  {right ? <Check className="h-4 w-4 shrink-0 text-good" aria-label="Correct answer" /> : null}
-                </li>
-              );
-            })}
-          </ul>
-          <p className="mt-2 text-xs leading-relaxed text-mut">{c.checkpoint.explanation}</p>
-        </div>
-      ) : null}
     </div>
   );
 }

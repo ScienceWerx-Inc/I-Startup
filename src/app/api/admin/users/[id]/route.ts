@@ -1,6 +1,7 @@
 import { getUser } from '@/lib/account';
 import { currentAdmin, unauthorized } from '@/lib/admin-guard';
 import { col, isDatabaseConfigured, isId, newestFirst, rows } from '@/lib/db';
+import { listCheckpointAnswers, scoreByCourse } from '@/lib/gap-course/checkpoints';
 import { listJobs } from '@/lib/gap-course/service';
 import { listCourseCards } from '@/lib/gap-course/view';
 import type { PurchaseRow } from '@/lib/payments';
@@ -18,7 +19,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!isId(id)) return Response.json({ error: 'Invalid id.' }, { status: 400 });
 
   try {
-    const [user, reports, purchases, jobs] = await Promise.all([
+    const [user, reports, purchases, jobs, answers] = await Promise.all([
       getUser(id),
       rows<ReportRow>(
         col('reports')
@@ -27,13 +28,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       ),
       rows<PurchaseRow>(col('purchases').where('user_id', '==', id)),
       listJobs(id),
+      listCheckpointAnswers({ userId: id }),
     ]);
+    const scores = scoreByCourse(answers);
     if (!user) return Response.json({ error: 'Founder not found.' }, { status: 404 });
     return Response.json({
       user: { ...user, last_login_at: user.last_login_at ?? null },
       reports: reports.sort(newestFirst),
       purchases: purchases.sort(newestFirst).map(({ user_id: _u, ...p }) => p),
-      courses: await listCourseCards(jobs),
+      courses: (await listCourseCards(jobs)).map((c) => ({ ...c, courseScore: scores.get(c.courseId) ?? null })),
     });
   } catch (error) {
     console.error('Failed to load user:', error);

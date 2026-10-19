@@ -33,8 +33,12 @@ class StepError extends Error {
   }
 }
 
-async function call(init?: { body: unknown }, reportId?: string): Promise<PublicCourseJob | null> {
-  const res = await fetch(init ? '/api/course' : `/api/course?reportId=${reportId}`, {
+/** The founder's own builder endpoint; the admin console drives the same steps through its twin. */
+export const FOUNDER_ENDPOINT = '/api/course';
+export const ADMIN_ENDPOINT = '/api/admin/courses/build';
+
+async function call(endpoint: string, init?: { body: unknown }, reportId?: string): Promise<PublicCourseJob | null> {
+  const res = await fetch(init ? endpoint : `${endpoint}?reportId=${reportId}`, {
     method: init ? 'POST' : 'GET',
     headers: init ? { 'Content-Type': 'application/json' } : undefined,
     body: init ? JSON.stringify(init.body) : undefined,
@@ -45,9 +49,14 @@ async function call(init?: { body: unknown }, reportId?: string): Promise<Public
   return data.job ?? null;
 }
 
-async function drive(reportId: string, onJob: (job: PublicCourseJob) => void, alive: () => boolean) {
-  const get = () => call(undefined, reportId);
-  const post = (body: Record<string, unknown>) => call({ body: { reportId, ...body } });
+export async function drive(
+  reportId: string,
+  onJob: (job: PublicCourseJob) => void,
+  alive: () => boolean,
+  endpoint: string = FOUNDER_ENDPOINT,
+) {
+  const get = () => call(endpoint, undefined, reportId);
+  const post = (body: Record<string, unknown>) => call(endpoint, { body: { reportId, ...body } });
   const attempts = new Map<string, number>();
 
   // `start` is idempotent: it returns an existing job, or (re)designs one that is missing,

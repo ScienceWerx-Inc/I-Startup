@@ -1,9 +1,10 @@
 import { z } from 'genkit';
 
-import { ai } from '@/ai/genkit';
+import { ai, MODEL } from '@/ai/genkit';
 import { normalizeFlowchart } from '@/lib/lessons/mermaid-source';
 import { toPlainParagraphs } from '@/lib/lessons/plain-prose';
 
+import { memoize } from './memo';
 import type { GapFocus, GapModule, GapPlan } from './plan';
 
 /**
@@ -16,6 +17,31 @@ import type { GapFocus, GapModule, GapPlan } from './plan';
  * dependency, worked examples, "what is NOT true", lengths from reading time, an optional
  * diagram, and a hands-on workshop to close each module.
  */
+
+/**
+ * One structured model call, memoized by its exact request (memo.ts): an identical
+ * prompt returns the stored output instead of calling the model again. The raw output is
+ * what is cached; the clean-up after it (clamping, filtering) runs either way.
+ */
+async function generateCached<S extends z.ZodTypeAny>(
+  kind: 'outline' | 'lesson' | 'quiz',
+  schema: S,
+  temperature: number,
+  prompt: string,
+): Promise<z.infer<S>> {
+  return memoize(
+    { kind, model: MODEL, temperature, schemaVersion: '1', prompt },
+    async () => {
+      const { output } = await ai.generate({ output: { schema }, config: { temperature }, prompt });
+      if (!output) throw new Error(`The model returned no ${kind}.`);
+      return output as z.infer<S>;
+    },
+    (value) => {
+      const parsed = schema.safeParse(value);
+      return parsed.success ? (parsed.data as z.infer<S>) : null;
+    },
+  );
+}
 
 /** Prose is read at roughly this rate, which is how a lesson's length is derived. */
 export const WORDS_PER_MINUTE = 160;
@@ -87,10 +113,7 @@ const describeModule = (m: GapModule) =>
   ].join('\n');
 
 export async function generateOutline(plan: GapPlan): Promise<CourseOutline> {
-  const { output } = await ai.generate({
-    output: { schema: OutlineSchema },
-    config: { temperature: 0.6 },
-    prompt: `You are designing the structure of a practical, personalised course for a startup founder. They just took the iSTARTUP investment-readiness assessment; this course closes the specific gaps it found. The founder will work through it lesson by lesson and be assessed against it, so it has to hold up as a plan rather than read well as a pitch.
+  const output = await generateCached('outline', OutlineSchema, 0.6, `You are designing the structure of a practical, personalised course for a startup founder. They just took the iSTARTUP investment-readiness assessment; this course closes the specific gaps it found. The founder will work through it lesson by lesson and be assessed against it, so it has to hold up as a plan rather than read well as a pitch.
 
 THE STARTUP
 ${describeStartup(plan)}
@@ -110,9 +133,7 @@ HOW TO BUILD THE OUTLINE
 HARD RULES
 - Plain text everywhere. No markdown, no asterisks, no headings inside any field.
 - Invent no statistics, studies, dates or quotations. If a claim would need a citation, teach the idea without the number.
-- Do not produce quiz, test or recap lessons; those are handled separately.`,
-  });
-  if (!output) throw new Error('The model returned no outline.');
+- Do not produce quiz, test or recap lessons; those are handled separately.`);
   return clampOutline(output, plan);
 }
 
@@ -181,10 +202,7 @@ export async function generateLesson(input: {
   const focus = input.module.focus.filter((f) => input.lesson.focusQuestionIds.includes(f.questionId));
   const targetWords = targetWordsFor(input.lesson.durationMin);
 
-  const { output } = await ai.generate({
-    output: { schema: LessonSchema },
-    config: { temperature: 0.7 },
-    prompt: `You are writing one lesson of a personalised course for a startup founder, built from their iSTARTUP investment-readiness assessment.
+  const output = await generateCached('lesson', LessonSchema, 0.7, `You are writing one lesson of a personalised course for a startup founder, built from their iSTARTUP investment-readiness assessment.
 
 THE STARTUP
 ${describeStartup(input.plan)}
@@ -231,9 +249,7 @@ THE DIAGRAM: include \`mermaid\` ONLY if this lesson genuinely describes a proce
 
 THE EXERCISE: a concrete task the founder does for their own startup this week, with a clear deliverable.
 
-THE CHECKPOINT: one question about a situation like theirs, four options with ids "a", "b", "c", "d", exactly one right. It must test whether they understood the IDEA — a question answerable by recognising a phrase from the text tests nothing. Wrong options are things a founder who half-followed would actually pick, not obvious throwaways.`,
-  });
-  if (!output) throw new Error('The model returned no lesson.');
+THE CHECKPOINT: one question about a situation like theirs, four options with ids "a", "b", "c", "d", exactly one right. It must test whether they understood the IDEA — a question answerable by recognising a phrase from the text tests nothing. Wrong options are things a founder who half-followed would actually pick, not obvious throwaways.`);
   const diagram = output.mermaid ? normalizeFlowchart(output.mermaid) : '';
   return {
     ...output,
@@ -280,10 +296,7 @@ export async function generateModuleQuiz(input: {
   moduleTitle: string;
   lessons: Array<{ title: string; brief: string; keyPoints: string[] }>;
 }): Promise<QuizQuestion[]> {
-  const { output } = await ai.generate({
-    output: { schema: z.object({ questions: z.array(QuizQuestionSchema) }) },
-    config: { temperature: 0.5 },
-    prompt: `You are writing ${QUIZ_QUESTIONS} questions for the graded quiz that closes the module "${input.moduleTitle}" of a personalised course for a startup founder.
+  const output = await generateCached('quiz', z.object({ questions: z.array(QuizQuestionSchema) }), 0.5, `You are writing ${QUIZ_QUESTIONS} questions for the graded quiz that closes the module "${input.moduleTitle}" of a personalised course for a startup founder.
 
 THE STARTUP
 ${describeStartup(input.plan)}
@@ -307,8 +320,7 @@ FORMATS
 - mcq_multi: four or five options, two or three correct. Use it when the point genuinely has several parts.
 - true_false: exactly two options, ids "true" and "false", one correct id. Use it for a claim worth confronting directly.
 
-The explanation is required on every question, written to the founder as "you": why the answer is right and, where a wrong option was tempting, why that one is not. Do not restate the question.`,
-  });
+The explanation is required on every question, written to the founder as "you": why the answer is right and, where a wrong option was tempting, why that one is not. Do not restate the question.`);
   const questions = (output?.questions ?? []).filter((q) => {
     if (!q.stem.trim() || !q.explanation.trim() || q.correctOptionIds.length === 0) return false;
     if (q.type === 'true_false') return q.correctOptionIds.length === 1 && ['true', 'false'].includes(q.correctOptionIds[0]);

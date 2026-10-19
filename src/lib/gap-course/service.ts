@@ -73,6 +73,8 @@ export interface CourseJob {
   description?: string;
   modules?: JobModule[];
   error?: string;
+  /** The admin who generated this course for the founder from the console, if one did. */
+  created_by?: string;
   /** When the current outline/publish attempt began, to recover from a crashed request. */
   step_started_at?: string;
   created_at: string;
@@ -123,8 +125,13 @@ export async function listJobs(userId: string): Promise<CourseJob[]> {
 
 /* ─────────────────────────────────── start ─────────────────────────────────── */
 
-export async function startCourse(userId: string, reportId: string): Promise<CourseJob> {
-  if (!(await courseAccess(userId))) throw new CourseError('Enroll in the course to unlock it.', 402);
+/**
+ * Starts (or resumes) the course for one of `userId`'s reports. `createdBy` is set when an
+ * admin generates it from the console: the founder is granted the course regardless of the
+ * paywall, and enrolled as 'admin'.
+ */
+export async function startCourse(userId: string, reportId: string, opts: { createdBy?: string } = {}): Promise<CourseJob> {
+  if (!opts.createdBy && !(await courseAccess(userId))) throw new CourseError('Enroll in the course to unlock it.', 402);
 
   const report = await col('reports').doc(reportId).get();
   if (!report.exists || report.get('user_id') !== userId) throw new CourseError('Report not found.', 404);
@@ -140,6 +147,7 @@ export async function startCourse(userId: string, reportId: string): Promise<Cou
       status: 'outlining',
       plan: planFromAnswers(report.get('profile') as StartupProfile, report.get('answers') as Answers),
       step_started_at: now,
+      ...(opts.createdBy ? { created_by: opts.createdBy } : {}),
       created_at: now,
       updated_at: now,
     };
@@ -450,7 +458,11 @@ export async function finishCourse(userId: string, reportId: string): Promise<Co
     if (course.status !== 'published') await service.publishCourse(job.course_id);
 
     const paid = (await entitlements(userId)).course;
-    const enrolled = await service.enroll({ courseId: job.course_id, userId, source: paid ? 'purchase' : 'free' });
+    const enrolled = await service.enroll({
+      courseId: job.course_id,
+      userId,
+      source: job.created_by ? 'admin' : paid ? 'purchase' : 'free',
+    });
     if (!enrolled.ok && enrolled.code !== 'already_enrolled') throw new Error(enrolled.message);
 
     await ref.update({ status: 'ready', error: null, updated_at: nowIso() });

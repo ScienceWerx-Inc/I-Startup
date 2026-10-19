@@ -27,6 +27,8 @@ export const COLLECTIONS = {
   courseJobs: 'istartup_course_jobs',
   /** `{courseId}_{lessonId}` → a founder's first answer to that lesson's checkpoint (the course score). */
   checkpointAnswers: 'istartup_checkpoint_answers',
+  /** `{sha256 of the exact request}` → a memoized model output (see lib/gap-course/memo.ts). */
+  aiCache: 'istartup_ai_cache',
 } as const;
 
 export function isDatabaseConfigured(): boolean {

@@ -1,31 +1,13 @@
 import { z } from 'zod';
 
 import { sessionUserId } from '@/lib/account';
-import { CourseError, finishCourse, getJob, startCourse, writeLesson, type CourseJob } from '@/lib/gap-course/service';
-import type { PublicCourseJob } from '@/lib/gap-course/shared';
+import { publicJob } from '@/lib/gap-course/public-job';
+import { CourseError, finishCourse, getJob, startCourse, writeLesson } from '@/lib/gap-course/service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 // One model call per request at most (an outline, a lesson or a quiz).
 export const maxDuration = 120;
-
-/** What the client sees of a job: no plan internals, no other founder's data. */
-function publicJob(job: CourseJob): PublicCourseJob {
-  return {
-    reportId: job.id,
-    courseId: job.course_id,
-    status: job.status,
-    title: job.title ?? null,
-    subtitle: job.subtitle ?? null,
-    error: job.error ?? null,
-    plan: job.plan.modules.map((m) => ({ key: m.key, title: m.title, percent: m.percent, gaps: m.focus.map((f) => f.title) })),
-    modules: (job.modules ?? []).map((m) => ({
-      id: m.id,
-      title: m.title,
-      lessons: m.lessons.map((l) => ({ id: l.id, title: l.title, status: l.status, kind: l.kind ?? 'lesson' })),
-    })),
-  };
-}
 
 const ReportId = z.string().uuid();
 

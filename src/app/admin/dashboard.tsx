@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
@@ -13,9 +13,12 @@ import {
   Globe2,
   GraduationCap,
   ListOrdered,
+  Loader2,
+  Plus,
   LogOut,
   RefreshCw,
   Settings2,
+  Sparkles,
   Trash2,
   Users,
   XCircle,
@@ -25,7 +28,7 @@ import { Button } from '@/components/ui/button';
 import type { LessonCheckpoint } from '@/features/lms/domain';
 import type { GapPlan } from '@/lib/gap-course/plan';
 import type { QuizReview as QuizReviewData, QuizScore } from '@/lib/gap-course/quiz-scores';
-import { CERTIFICATE_NAME } from '@/lib/gap-course/shared';
+import { CERTIFICATE_NAME, type PublicCourseJob } from '@/lib/gap-course/shared';
 import { cn } from '@/lib/utils';
 import {
   CertificateScroller,
@@ -33,6 +36,7 @@ import {
   SCORE_CERTIFICATE_NAME,
   ScoreCertificate,
 } from '@/modules/certificates/certificate';
+import { ADMIN_ENDPOINT, drive } from '@/modules/gap-course/course-builder';
 import { LessonBody } from '@/modules/gap-course/lesson-body';
 import { QUESTIONS, type StartupProfile } from '@/modules/istartup-score/assessment/bank';
 import { bandFor, computeReport } from '@/modules/istartup-score/assessment/scoring';
@@ -91,6 +95,7 @@ interface Overview {
   revenue?: Array<{ product: string; currency: string; provider: string; count: number; cents: number }>;
   signupsByDay?: Array<{ day: string; count: number }>;
   breakdowns?: Array<{ key: string; label: string; rows: Array<{ label: string; count: number }> }>;
+  aiCache?: Array<{ kind: 'outline' | 'lesson' | 'quiz'; stored: number; hits: number }> | null;
   error?: string;
 }
 
@@ -181,6 +186,8 @@ interface CourseCard {
   certificateExpiresAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** The admin who generated it from the console; null when the founder's own builder did. */
+  createdBy: string | null;
   courseScore?: CourseScore | null;
   quizScore?: QuizScore | null;
   user_email?: string | null;
@@ -266,7 +273,7 @@ const TABS = [
   { key: 'overview', label: 'Overview', icon: BarChart3 },
   { key: 'founders', label: 'Founders', icon: Users },
   { key: 'reports', label: 'Reports', icon: ListOrdered },
-  { key: 'courses', label: 'Courses', icon: GraduationCap },
+  { key: 'courses', label: 'Library', icon: GraduationCap },
   { key: 'payments', label: 'Payments', icon: CreditCard },
   { key: 'system', label: 'System', icon: Settings2 },
 ] as const;
@@ -1043,22 +1050,27 @@ function CoursesTab() {
   }, [data, q]);
   const all = data?.courses ?? [];
   const ready = all.filter((c) => c.status === 'ready');
+  const [creating, setCreating] = useState(false);
 
   return (
     <div className="space-y-5">
       <Panel>
         <PanelHead
           icon={GraduationCap}
-          title="Courses"
-          sub={data ? `${plural(all.length, 'generated course')}. Select one to review every lesson.` : undefined}
+          title="Library"
+          sub={data ? `${plural(all.length, 'generated course')}, every founder's. Select one to review every lesson.` : undefined}
           action={
             <div className="flex w-full flex-wrap gap-2 sm:w-auto">
               <SearchBox value={q} onChange={setQ} placeholder="Search course, founder, module…" />
               <ReloadButton onClick={reload} loading={loading} />
+              <Button size="sm" onClick={() => setCreating((v) => !v)}>
+                <Plus className="h-3.5 w-3.5" /> New course for a founder
+              </Button>
             </div>
           }
         />
         <ErrorNote error={error} />
+        {creating && data ? <NewCoursePanel courses={all} onClose={() => setCreating(false)} onChanged={reload} /> : null}
         {data ? (
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
             <Tile label="Generated" value={all.length} sub={`${ready.length} ready`} />
@@ -1154,7 +1166,9 @@ function CoursesTab() {
                           '—'
                         )}
                       </td>
-                      <td className={cn(td, 'pr-0 text-right font-mono text-xs text-mut')}>{date(c.createdAt)}</td>
+                      <td className={cn(td, 'pr-0 text-right font-mono text-xs text-mut')}>{date(c.createdAt)}
+                        <span className="block font-sans text-[11px]">{c.createdBy ? `by admin ${c.createdBy}` : 'by the founder'}</span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1165,6 +1179,165 @@ function CoursesTab() {
       ) : (
         !error && <p className="text-sm text-mut">{loading ? 'Loading…' : '—'}</p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Generating a gap-closing course for a founder from the console: pick one of their
+ * reports, and the console drives the same build steps the founder's own page would
+ * (outline, lessons, quizzes, publish), on their behalf. A report already with a course
+ * opens it; a failed or unfinished build resumes where it stopped. Every model call goes
+ * through the memoized layer, so anything already generated for that request is reused.
+ */
+function NewCoursePanel({ courses, onClose, onChanged }: { courses: CourseCard[]; onClose: () => void; onChanged: () => void }) {
+  const reports = useAdminData<{ reports: ReportSummary[] }>('/api/reports?limit=1000');
+  const [q, setQ] = useState('');
+  const [build, setBuild] = useState<{ reportId: string; job: PublicCourseJob | null; error: string | null; running: boolean } | null>(null);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+
+  const byReport = useMemo(() => new Map(courses.map((c) => [c.reportId, c])), [courses]);
+  const rows = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return (reports.data?.reports ?? [])
+      .filter((r) => r.user_id)
+      .filter((r) => !needle || [r.startup_name, r.user_name, r.user_email].some((v) => String(v ?? '').toLowerCase().includes(needle)));
+  }, [reports.data, q]);
+
+  const generate = async (reportId: string) => {
+    setBuild({ reportId, job: null, error: null, running: true });
+    try {
+      await drive(reportId, (job) => alive.current && setBuild((b) => (b ? { ...b, job } : b)), () => alive.current, ADMIN_ENDPOINT);
+      if (alive.current) setBuild((b) => (b ? { ...b, running: false } : b));
+    } catch (e) {
+      if (alive.current) setBuild((b) => (b ? { ...b, running: false, error: e instanceof Error ? e.message : 'The build failed.' } : b));
+    } finally {
+      if (alive.current) onChanged();
+    }
+  };
+
+  const steps = build?.job?.modules.flatMap((m) => m.lessons) ?? [];
+  const doneSteps = steps.filter((l) => l.status === 'done').length;
+
+  return (
+    <div className="mt-5 rounded-lg border border-line bg-paper p-4 sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-ink">New course for a founder</h3>
+          <p className="mt-0.5 text-xs text-mut">
+            Pick one of a founder&apos;s reports. The course is built from its gaps (lessons, diagrams, slides and a quiz per
+            module), published and granted to the founder. Already-generated content for the same request is reused.
+          </p>
+        </div>
+        <Button size="sm" variant="ghost" onClick={onClose} disabled={build?.running}>
+          Close
+        </Button>
+      </div>
+
+      {build ? (
+        <div className="mt-4 rounded-lg bg-surface p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <span className="font-medium text-ink">
+              {build.job?.title ?? 'Designing the course…'}
+              {build.job?.status === 'ready' ? <Badge tone="good">Ready</Badge> : null}
+            </span>
+            <span className="font-mono text-xs text-mut">
+              {build.running ? <Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" /> : null}
+              {steps.length ? `${doneSteps} of ${steps.length} steps` : 'Outline'}
+            </span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-mist">
+            <div
+              className="h-full rounded-full bg-tech transition-all"
+              style={{ width: `${build.job?.status === 'ready' ? 100 : steps.length ? 8 + (doneSteps / steps.length) * 90 : 5}%` }}
+            />
+          </div>
+          {build.job?.modules.length ? (
+            <ul className="mt-3 grid gap-x-6 gap-y-1 text-xs sm:grid-cols-2">
+              {steps.map((l) => (
+                <li key={l.id} className="flex items-center gap-1.5">
+                  {l.status === 'done' ? (
+                    <Check className="h-3.5 w-3.5 shrink-0 text-good" />
+                  ) : l.status === 'error' ? (
+                    <XCircle className="h-3.5 w-3.5 shrink-0 text-risk" />
+                  ) : (
+                    <Loader2 className={cn('h-3.5 w-3.5 shrink-0 text-mut', l.status === 'running' && 'animate-spin')} />
+                  )}
+                  <span className={cn('truncate', l.status === 'done' ? 'text-ink' : 'text-mut')}>{l.title}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {build.error ? <p className="mt-3 text-sm text-risk">{build.error}</p> : null}
+          {build.job?.status === 'ready' ? (
+            <Button size="sm" className="mt-3" onClick={() => go(`courses/${build.job!.courseId}`)}>
+              Review the course
+            </Button>
+          ) : !build.running ? (
+            <Button size="sm" variant="outline" className="mt-3" onClick={() => generate(build.reportId)}>
+              <RefreshCw className="h-3.5 w-3.5" /> Resume
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <SearchBox value={q} onChange={setQ} placeholder="Search founder, email, startup…" />
+        <span className="text-xs text-mut">{reports.loading ? 'Loading reports…' : `${plural(rows.length, 'report')} from founders`}</span>
+      </div>
+      <ErrorNote error={reports.error} />
+      <TableFrame>
+        <table className="w-full min-w-[760px] text-left text-sm">
+          <thead>
+            <tr className="border-b border-line">
+              <th className={th}>Founder</th>
+              <th className={th}>Startup</th>
+              <th className={cn(th, 'text-right')}>Score</th>
+              <th className={th}>Assessed</th>
+              <th className={th}>Course</th>
+              <th className={cn(th, 'pr-0 text-right')} />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {rows.slice(0, 200).map((r) => {
+              const course = byReport.get(r.id);
+              const busy = build?.running && build.reportId === r.id;
+              return (
+                <tr key={r.id}>
+                  <td className={td}>
+                    <span className="text-ink">{r.user_name || r.user_email}</span>
+                    <span className="block text-xs text-mut">{r.user_email}</span>
+                  </td>
+                  <td className={cn(td, 'text-ink')}>{r.startup_name || 'Untitled'}</td>
+                  <td className={cn(td, 'text-right font-mono tabular')}>{r.final_score}</td>
+                  <td className={cn(td, 'font-mono text-xs text-mut')}>{date(r.created_at)}</td>
+                  <td className={td}>
+                    {course ? <Badge tone={COURSE_STATUS[course.status].tone}>{COURSE_STATUS[course.status].label}</Badge> : <span className="text-mut">None</span>}
+                  </td>
+                  <td className={cn(td, 'pr-0 text-right')}>
+                    {course?.status === 'ready' ? (
+                      <Button size="sm" variant="ghost" onClick={() => go(`courses/${course.courseId}`)}>
+                        Open
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant={course ? 'outline' : 'default'} disabled={Boolean(build?.running)} onClick={() => generate(r.id)}>
+                        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                        {course ? 'Resume' : 'Generate course'}
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </TableFrame>
     </div>
   );
 }
@@ -1663,6 +1836,35 @@ function SystemTab() {
             <Tile label="Report rows" value={String(db.data.count ?? '—')} />
           </div>
         ) : null}
+      </Panel>
+
+      <Panel>
+        <PanelHead
+          icon={Sparkles}
+          title="Course generation cache"
+          sub="Every outline, lesson and quiz the model writes is stored by a hash of its exact request; an identical request is served from here instead of calling the model again."
+        />
+        {overview.data?.aiCache ? (
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Tile
+              label="Stored outputs"
+              value={overview.data.aiCache.reduce((a, k) => a + k.stored, 0)}
+              sub={overview.data.aiCache.map((k) => `${k.stored} ${k.kind}${k.stored === 1 ? '' : 's'}`).join(' · ')}
+            />
+            <Tile
+              label="Model calls saved"
+              value={overview.data.aiCache.reduce((a, k) => a + k.hits, 0)}
+              sub="Requests served from the cache"
+            />
+            {overview.data.aiCache
+              .filter((k) => k.kind !== 'outline')
+              .map((k) => (
+                <Tile key={k.kind} label={`${k.kind === 'quiz' ? 'Quizzes' : 'Lessons'} reused`} value={k.hits} sub={`of ${k.stored} stored`} />
+              ))}
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-mut">{overview.loading ? 'Loading…' : 'No cache data yet.'}</p>
+        )}
       </Panel>
 
       <Panel>

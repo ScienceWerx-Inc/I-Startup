@@ -15,7 +15,10 @@ function projectId(): string | undefined {
   }
 }
 
+/** The model every generation uses; part of each memoized call's cache key. */
+export const MODEL = 'vertexai/gemini-2.5-flash';
+
 export const ai = genkit({
   plugins: [vertexAI({ projectId: projectId(), location: 'global' })],
-  model: 'vertexai/gemini-2.5-flash',
+  model: MODEL,
 });

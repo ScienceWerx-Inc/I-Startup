@@ -96,6 +96,7 @@ export async function listCourseCards(jobs: CourseJob[]) {
         percent: progress?.percent ?? 0,
         certificateId: enrollment?.certificateId ?? null,
         certificateExpiresAt: certificate ? certificateExpiry(certificate.issuedAt).toISOString() : null,
+        createdBy: job.created_by ?? null,
         createdAt: job.created_at,
         updatedAt: job.updated_at,
       };

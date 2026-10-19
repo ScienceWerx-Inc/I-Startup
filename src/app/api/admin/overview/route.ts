@@ -1,3 +1,5 @@
+import { AggregateField } from 'firebase-admin/firestore';
+
 import { currentAdmin, unauthorized } from '@/lib/admin-guard';
 import { col, isDatabaseConfigured } from '@/lib/db';
 import { paymentsMode } from '@/lib/payments';
@@ -49,13 +51,23 @@ export async function GET() {
   if (!config.database) return Response.json({ config, error: 'Database not configured.' }, { status: 503 });
 
   try {
-    const [userSnap, reportSnap, purchaseSnap] = await Promise.all([
+    const [userSnap, reportSnap, purchaseSnap, cacheSnap] = await Promise.all([
       col('users').select('created_at', 'onboarding').limit(SCAN_LIMIT).get(),
       col('reports').select('user_id').limit(SCAN_LIMIT).get(),
       col('purchases')
         .select('user_id', 'product', 'status', 'provider', 'currency', 'amount_cents')
         .limit(SCAN_LIMIT)
         .get(),
+      // The memoized model outputs (lib/gap-course/memo.ts): stored, and served again.
+      Promise.all(
+        (['outline', 'lesson', 'quiz'] as const).map(async (kind) => {
+          const agg = await col('aiCache')
+            .where('kind', '==', kind)
+            .aggregate({ stored: AggregateField.count(), hits: AggregateField.sum('hits') })
+            .get();
+          return { kind, stored: agg.data().stored, hits: agg.data().hits ?? 0 };
+        }),
+      ).catch(() => null),
     ]);
     const users = userSnap.docs.map((d) => d.data() as { created_at: string; onboarding?: Record<string, unknown> });
     const reports = reportSnap.docs.map((d) => d.data() as { user_id: string | null });
@@ -110,7 +122,7 @@ export async function GET() {
       return { key: b.key, label: b.label, rows };
     });
 
-    return Response.json({ config, funnel, revenue: [...revenueGroups.values()], signupsByDay, breakdowns });
+    return Response.json({ config, funnel, revenue: [...revenueGroups.values()], signupsByDay, breakdowns, aiCache: cacheSnap });
   } catch (error) {
     console.error('Failed to compute admin overview:', error);
     return Response.json({ config, error: 'Failed to compute overview.' }, { status: 500 });

@@ -29,6 +29,8 @@ export type OnboardingAnswers = Partial<Record<OnboardingKey, string>>;
 
 export type OnboardingField =
   | { key: OnboardingKey; kind: 'chips'; label: string; options: string[]; optional?: boolean }
+  /** Free text with a type-ahead list of countries, re-sorted on every keystroke. */
+  | { key: OnboardingKey; kind: 'country'; label: string; placeholder: string; optional?: boolean }
   | {
       key: OnboardingKey;
       kind: 'text' | 'textarea';
@@ -115,11 +117,10 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
       },
       {
         key: 'country',
-        kind: 'text',
+        kind: 'country',
         label: 'Where is the company based?',
-        placeholder: 'Country',
+        placeholder: 'Start typing a country',
         optional: true,
-        autoComplete: 'country-name',
       },
     ],
   },

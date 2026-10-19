@@ -2,7 +2,7 @@ import { sessionUserId } from '@/lib/account';
 import { currentAdmin, unauthorized } from '@/lib/admin-guard';
 import { col, isDatabaseConfigured, isId } from '@/lib/db';
 import { getJobById } from '@/lib/gap-course/service';
-import { entitlements } from '@/lib/payments';
+import { courseAccess, reportAccess } from '@/lib/payments';
 import type { ReportRow } from '@/lib/reports';
 
 export const runtime = 'nodejs';
@@ -40,8 +40,9 @@ export async function GET(
     }
     if (!admin) return Response.json({ report });
 
+    const ownerId = report.user_id;
     const [access, job] = await Promise.all([
-      report.user_id ? entitlements(report.user_id) : null,
+      ownerId ? Promise.all([reportAccess(ownerId), courseAccess(ownerId)]).then(([r, c]) => ({ report: r, course: c })) : null,
       getJobById(report.id),
     ]);
     return Response.json({

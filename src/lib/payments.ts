@@ -75,6 +75,16 @@ export async function entitlements(userId: string): Promise<Record<Product, bool
 }
 
 /**
+ * Whether a founder sees their full graded report (dimension breakdown, strengths, gaps,
+ * priority actions, PDF). Free for everyone for now — even once Stripe is configured.
+ * Set `REPORT_PAYWALL=on` to require a paid 'report' purchase again.
+ */
+export async function reportAccess(userId: string): Promise<boolean> {
+  if (process.env.REPORT_PAYWALL !== 'on') return true;
+  return (await entitlements(userId)).report;
+}
+
+/**
  * Whether a founder may take their gap-closing course. Free for everyone for now — even
  * once Stripe is configured. Set `COURSE_PAYWALL=on` to require a paid 'course' purchase.
  */

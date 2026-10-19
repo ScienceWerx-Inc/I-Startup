@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion, useReducedMotion, type Variants } from 'framer-motion';
@@ -18,6 +18,7 @@ import {
   type OnboardingAnswers,
   type OnboardingField,
 } from '../onboarding/fields';
+import { canonicalCountry, fold, matchCountries } from '../onboarding/countries';
 
 /**
  * "Submit an idea" — the only way in. A few screens of quick questions (sliding between
@@ -317,6 +318,10 @@ function FieldInput({
     );
   }
 
+  if (field.kind === 'country') {
+    return <CountryInput label={label} value={value} onChange={onChange} placeholder={field.placeholder} autoFocus={autoFocus} />;
+  }
+
   return (
     <label className="block">
       {label}
@@ -341,6 +346,144 @@ function FieldInput({
         />
       )}
     </label>
+  );
+}
+
+/**
+ * Country type-ahead: the list narrows and re-sorts with every letter typed (names that
+ * start with it first, then word starts, then anywhere). Arrow keys move, Enter or a click
+ * picks, Escape closes. Anything typed is kept, and an exact name or alias ("uae") is
+ * tidied to the listed spelling when the field loses focus.
+ */
+function CountryInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  autoFocus,
+}: {
+  label: ReactNode;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  autoFocus?: boolean;
+}) {
+  const id = useId();
+  const listId = `${id}-list`;
+  const listRef = useRef<HTMLUListElement>(null);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const matches = useMemo(() => matchCountries(value), [value]);
+  const shown = open && matches.length > 0 && !(matches.length === 1 && matches[0] === value);
+
+  useEffect(() => {
+    listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [active]);
+
+  const pick = (name: string) => {
+    onChange(name);
+    setOpen(false);
+  };
+
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!open) return setOpen(true);
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      setActive((i) => (i + step + matches.length) % Math.max(matches.length, 1));
+    } else if (e.key === 'Enter' && shown) {
+      e.preventDefault();
+      pick(matches[active] ?? matches[0]);
+    } else if (e.key === 'Escape' && open) {
+      e.preventDefault();
+      setOpen(false);
+    }
+  };
+
+  const onBlur = () => {
+    setOpen(false);
+    const listed = canonicalCountry(value);
+    if (listed && listed !== value) onChange(listed);
+  };
+
+  return (
+    <div>
+      <label htmlFor={id} className="block">
+        {label}
+      </label>
+      <input
+        id={id}
+        role="combobox"
+        aria-expanded={shown}
+        aria-controls={listId}
+        aria-autocomplete="list"
+        aria-activedescendant={shown ? `${id}-opt-${active}` : undefined}
+        className={inputClass}
+        value={value}
+        placeholder={placeholder}
+        autoFocus={autoFocus}
+        autoComplete="off"
+        maxLength={120}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setActive(0);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onClick={() => setOpen(true)}
+        onBlur={onBlur}
+        onKeyDown={onKeyDown}
+      />
+      {shown ? (
+        // Inline, not floating: the step panel clips overflow, so an absolute list would be cut off.
+        <ul
+          ref={listRef}
+          id={listId}
+          role="listbox"
+          className="mt-1 max-h-60 overflow-y-auto rounded-lg border border-line-strong bg-surface py-1 shadow-sm"
+        >
+          {matches.map((name, i) => (
+            <li
+              key={name}
+              id={`${id}-opt-${i}`}
+              data-index={i}
+              role="option"
+              aria-selected={i === active}
+              // mousedown, not click: it fires before the input's blur closes the list.
+              onMouseDown={(e) => {
+                e.preventDefault();
+                pick(name);
+              }}
+              onMouseEnter={() => setActive(i)}
+              className={cn(
+                'flex cursor-pointer items-center justify-between px-3.5 py-2 text-[15px] text-ink',
+                i === active && 'bg-brand-soft',
+              )}
+            >
+              <Highlight text={name} query={value} />
+              {name === value ? <Check className="h-4 w-4 text-brand" /> : null}
+            </li>
+          ))}
+        </ul>
+      ) : open && value.trim() && matches.length === 0 ? (
+        <p className="mt-1.5 text-xs text-mut">No country matches. What you typed will be kept.</p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Bolds the part of the name that matches what was typed. */
+function Highlight({ text, query }: { text: string; query: string }) {
+  const q = fold(query);
+  // Folding strips accents without changing length for these names, so indexes line up.
+  const at = q ? fold(text).indexOf(q) : -1;
+  if (at < 0) return <span>{text}</span>;
+  return (
+    <span>
+      {text.slice(0, at)}
+      <strong className="font-semibold">{text.slice(at, at + q.length)}</strong>
+      {text.slice(at + q.length)}
+    </span>
   );
 }
 

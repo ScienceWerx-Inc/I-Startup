@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { ArrowRight, Award, Check, Circle, Clock } from 'lucide-react';
+import { ArrowRight, Award, Check, Circle, ClipboardList, Clock } from 'lucide-react';
 
 import { buttonVariants } from '@/components/ui/button';
 import { sessionUserId } from '@/lib/account';
@@ -97,9 +97,15 @@ export default async function CoursePage({ params }: { params: Promise<{ courseI
                             <Circle className={cn('h-4 w-4 shrink-0', lesson.id === next?.id ? 'text-brand' : 'text-line-strong')} />
                           )}
                           <span className={cn('flex-1 text-[15px]', done ? 'text-mut' : 'text-ink')}>{lesson.title}</span>
-                          <span className="flex shrink-0 items-center gap-1 text-xs text-mut">
-                            <Clock className="h-3.5 w-3.5" /> {minutes(lesson.durationSec)}
-                          </span>
+                          {lesson.assessmentId ? (
+                            <span className="flex shrink-0 items-center gap-1 rounded-full bg-tech-soft px-2 py-0.5 text-xs font-medium text-tech">
+                              <ClipboardList className="h-3.5 w-3.5" /> Graded quiz
+                            </span>
+                          ) : (
+                            <span className="flex shrink-0 items-center gap-1 text-xs text-mut">
+                              <Clock className="h-3.5 w-3.5" /> {minutes(lesson.durationSec)}
+                            </span>
+                          )}
                         </Link>
                       </li>
                     );
@@ -134,7 +140,9 @@ export default async function CoursePage({ params }: { params: Promise<{ courseI
               </>
             ) : (
               <p className="mt-1 text-[13px] leading-relaxed text-readout-ink/70">
-                Complete all {lessons.length} lessons to be certified. Valid for {CERTIFICATE_VALID_MONTHS} months.
+                {lessons.some((l) => l.assessmentId)
+                  ? `Complete every lesson and pass each module quiz to be certified. Valid for ${CERTIFICATE_VALID_MONTHS} months.`
+                  : `Complete all ${lessons.length} lessons to be certified. Valid for ${CERTIFICATE_VALID_MONTHS} months.`}
               </p>
             )}
           </Panel>

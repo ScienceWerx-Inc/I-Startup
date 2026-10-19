@@ -24,6 +24,7 @@ import {
 import { Button } from '@/components/ui/button';
 import type { LessonCheckpoint } from '@/features/lms/domain';
 import type { GapPlan } from '@/lib/gap-course/plan';
+import type { QuizReview as QuizReviewData, QuizScore } from '@/lib/gap-course/quiz-scores';
 import { CERTIFICATE_NAME } from '@/lib/gap-course/shared';
 import { cn } from '@/lib/utils';
 import {
@@ -181,6 +182,7 @@ interface CourseCard {
   createdAt: string;
   updatedAt: string;
   courseScore?: CourseScore | null;
+  quizScore?: QuizScore | null;
   user_email?: string | null;
   user_name?: string | null;
 }
@@ -193,6 +195,8 @@ interface CourseScore {
 }
 
 interface CourseLesson {
+  kind: 'lesson' | 'quiz';
+  quiz: QuizReviewData | null;
   id: string;
   title: string;
   brief: string;
@@ -228,6 +232,7 @@ interface CourseDetail {
   };
   plan: GapPlan;
   score: CourseScore & { checkpoints: number };
+  quizScore: QuizScore | null;
   enrollment: {
     status: string;
     source: string;
@@ -287,7 +292,7 @@ const msDate = (ms: number | null | undefined) => (ms ? new Date(ms).toISOString
 const duration = (sec: number) =>
   sec >= 3600 ? `${Math.floor(sec / 3600)}h ${Math.round((sec % 3600) / 60)}m` : `${Math.max(0, Math.round(sec / 60))}m`;
 
-const scoreText = (s: CourseScore | null | undefined) => (s?.percent != null ? `${s.percent}%` : '—');
+const scoreText = (s: CourseScore | QuizScore | null | undefined) => (s?.percent != null ? `${s.percent}%` : '—');
 
 /** The report's weakest dimension, from its stored scores. */
 function weakest(scores: ReportSummary['scores']) {
@@ -689,7 +694,7 @@ function FounderDetail({ id }: { id: string }) {
                   {c.status === 'ready' ? (
                     <>
                       <p className="font-mono font-semibold text-ink">
-                        {c.percent}% complete · score {scoreText(c.courseScore)}
+                        {c.percent}% complete · quizzes {scoreText(c.quizScore)} · self-checks {scoreText(c.courseScore)}
                       </p>
                       <p className="text-xs text-mut">{c.certificateId
                           ? `411 Certificate ${c.certificateId}${c.certificateExpiresAt ? ` · valid until ${date(c.certificateExpiresAt)}` : ''}`
@@ -1068,12 +1073,12 @@ function CoursesTab() {
               sub={`${ready.filter((c) => c.percent > 0).length} started`}
             />
             <Tile
-              label="Avg course score"
+              label="Avg quiz score"
               value={(() => {
-                const scored = all.filter((c) => c.courseScore?.percent != null);
-                return scored.length ? `${Math.round(scored.reduce((a, c) => a + c.courseScore!.percent!, 0) / scored.length)}%` : '—';
+                const scored = all.filter((c) => c.quizScore?.percent != null);
+                return scored.length ? `${Math.round(scored.reduce((a, c) => a + c.quizScore!.percent!, 0) / scored.length)}%` : '—';
               })()}
-              sub="Checkpoints right first time"
+              sub={`${all.reduce((a, c) => a + (c.quizScore?.passed ?? 0), 0)} module quizzes passed`}
             />
             <Tile label={`${CERTIFICATE_NAME}s`} value={all.filter((c) => c.certificateId).length} sub="Earned" />
           </div>
@@ -1133,12 +1138,14 @@ function CoursesTab() {
                       </td>
                       <td className={cn(td, 'text-right font-mono font-semibold tabular')}>{c.status === 'ready' ? `${c.percent}%` : '—'}</td>
                       <td className={cn(td, 'text-right font-mono tabular')}>
-                        <span className="font-semibold text-ink">{scoreText(c.courseScore)}</span>
-                        {c.courseScore ? (
-                          <span className="block text-[11px] text-mut">
-                            {c.courseScore.correct}/{c.courseScore.answered} right
-                          </span>
-                        ) : null}
+                        <span className="font-semibold text-ink">{scoreText(c.quizScore ?? c.courseScore)}</span>
+                        <span className="block text-[11px] text-mut">
+                          {c.quizScore
+                            ? `${c.quizScore.passed}/${c.quizScore.quizzes} quizzes passed`
+                            : c.courseScore
+                              ? `${c.courseScore.correct}/${c.courseScore.answered} self-checks right`
+                              : 'No answers yet'}
+                        </span>
                       </td>
                       <td className={cn(td, 'text-mut')}>
                         {c.certificateId ? (
@@ -1224,15 +1231,23 @@ function CourseDetailView({ id }: { id: string }) {
         ) : null}
 
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Tile
-            label="Course score"
-            value={scoreText(score)}
-            sub={
-              score.answered
-                ? `${score.correct} of ${score.answered} checkpoints right first time`
-                : `No checkpoint answered yet · ${score.checkpoints} in course`
-            }
-          />
+          {data.quizScore ? (
+            <Tile
+              label="Quiz score"
+              value={scoreText(data.quizScore)}
+              sub={`${data.quizScore.passed} of ${data.quizScore.quizzes} module quizzes passed · self-checks ${scoreText(score)}`}
+            />
+          ) : (
+            <Tile
+              label="Self-check score"
+              value={scoreText(score)}
+              sub={
+                score.answered
+                  ? `${score.correct} of ${score.answered} checkpoints right first time`
+                  : `No checkpoint answered yet · ${score.checkpoints} in course`
+              }
+            />
+          )}
           <Tile
             label="Progress"
             value={progress ? `${progress.percent}%` : '—'}
@@ -1372,7 +1387,13 @@ function CourseDetailView({ id }: { id: string }) {
                         Lesson {lessonNumber.get(l.id)}. {l.title}
                       </span>
                       <span className="mt-0.5 block text-xs text-mut">
-                        {l.completed ? `Completed ${dateTime(msDate(l.completedAt))}` : 'Not completed'}
+                        {l.completed
+                          ? l.completedAt
+                            ? `Completed ${dateTime(msDate(l.completedAt))}`
+                            : l.kind === 'quiz'
+                              ? 'Completed by passing the quiz'
+                              : 'Completed'
+                          : 'Not completed'}
                         {l.answer ? ` · checkpoint ${l.answer.correct ? 'right' : 'wrong'}` : ''}
                       </span>
                     </span>
@@ -1394,8 +1415,98 @@ function CourseDetailView({ id }: { id: string }) {
   );
 }
 
+/** A module quiz for review: every question with its correct answers, and each attempt the founder made. */
+function QuizAdminReview({ lesson }: { lesson: CourseLesson }) {
+  const q = lesson.quiz;
+  if (!q) {
+    return (
+      <p className="px-5 pb-4 text-sm text-mut sm:px-7">
+        {lesson.error ?? (lesson.status === 'done' ? 'Quiz data is missing.' : 'Not written yet.')}
+      </p>
+    );
+  }
+  const last = q.attempts.filter((a) => a.status === 'graded').at(-1);
+  const lastPick = new Map(last?.results.map((r) => [r.questionId, r]) ?? []);
+  return (
+    <div className="space-y-5 border-t border-line bg-paper/60 px-5 py-6 sm:px-7">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <Badge tone={q.passed ? 'good' : q.attempts.length ? 'warn' : 'neutral'}>
+          {q.passed ? 'Passed' : q.attempts.length ? 'Not passed yet' : 'Not attempted'}
+        </Badge>
+        <span className="text-mut">
+          Best {q.bestPercent != null && q.attempts.length ? `${q.bestPercent}%` : '—'} · pass mark {q.passPercent}% ·{' '}
+          {q.attempts.length} of {q.maxAttempts} attempts used
+        </span>
+      </div>
+
+      {q.attempts.length ? (
+        <TableFrame>
+          <table className="w-full min-w-[480px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-line">
+                <th className={th}>Attempt</th>
+                <th className={cn(th, 'text-right')}>Score</th>
+                <th className={th}>Result</th>
+                <th className={cn(th, 'pr-0 text-right')}>Submitted</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {q.attempts.map((a) => (
+                <tr key={a.attemptNo}>
+                  <td className={cn(td, 'font-mono text-xs')}>#{a.attemptNo}</td>
+                  <td className={cn(td, 'text-right font-mono font-semibold tabular')}>{a.status === 'graded' ? `${a.percent}%` : '—'}</td>
+                  <td className={td}>
+                    {a.status === 'graded' ? <Badge tone={a.passed ? 'good' : 'warn'}>{a.passed ? 'Passed' : 'Failed'}</Badge> : <Badge>In progress</Badge>}
+                  </td>
+                  <td className={cn(td, 'pr-0 text-right font-mono text-xs text-mut')}>{dateTime(msDate(a.submittedAt ?? a.startedAt))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableFrame>
+      ) : null}
+
+      <ol className="max-w-3xl space-y-4">
+        {q.questions.map((question, i) => {
+          const pick = lastPick.get(question.id);
+          return (
+            <li key={question.id} className="rounded-card bg-surface p-5">
+              <p className="text-[15px] font-medium leading-relaxed text-ink">
+                <span className="mr-2 font-mono text-xs text-mut">{String(i + 1).padStart(2, '0')}</span>
+                {question.stem}
+                <span className="ml-2 font-mono text-[11px] uppercase text-mut">{question.type.replace('_', ' ')}</span>
+              </p>
+              <ul className="mt-3 space-y-1.5">
+                {question.options.map((o) => {
+                  const right = question.correctOptionIds.includes(o.id);
+                  const theirs = pick?.picked.includes(o.id);
+                  return (
+                    <li
+                      key={o.id}
+                      className={cn(
+                        'flex items-start gap-3 rounded-lg border px-4 py-2.5 text-sm',
+                        right ? 'border-good/40 bg-good-soft' : theirs ? 'border-risk/40 bg-risk-soft' : 'border-line',
+                      )}
+                    >
+                      <span className="flex-1 text-ink">{o.label}</span>
+                      {theirs ? <span className="shrink-0 text-[11px] font-semibold text-ink">Last pick</span> : null}
+                      {right ? <Check className="h-4 w-4 shrink-0 text-good" aria-label="Correct answer" /> : null}
+                    </li>
+                  );
+                })}
+              </ul>
+              {question.explanation ? <p className="mt-3 text-sm leading-relaxed text-mut">{question.explanation}</p> : null}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
 /** One lesson exactly as the founder reads it, then its checkpoint with the answer and their pick. */
 function LessonReview({ lesson }: { lesson: CourseLesson }) {
+  if (lesson.kind === 'quiz') return <QuizAdminReview lesson={lesson} />;
   const c = lesson.content;
   if (!c) {
     return (

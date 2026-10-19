@@ -68,8 +68,15 @@ async function drive(reportId: string, onJob: (job: PublicCourseJob) => void, al
     }
 
     const lessons = job.modules.flatMap((m) => m.lessons);
-    const todo = lessons.filter(
-      (l) => l.status === 'pending' || (l.status === 'error' && (attempts.get(l.id) ?? 0) < MAX_LESSON_ATTEMPTS),
+    // A module's quiz is written from its lessons, so it is only ready once they are.
+    const ready = (m: PublicCourseJob['modules'][number]) =>
+      m.lessons.every((l) => l.kind === 'quiz' || l.status === 'done');
+    const todo = job.modules.flatMap((m) =>
+      m.lessons.filter(
+        (l) =>
+          (l.kind !== 'quiz' || ready(m)) &&
+          (l.status === 'pending' || (l.status === 'error' && (attempts.get(l.id) ?? 0) < MAX_LESSON_ATTEMPTS)),
+      ),
     );
 
     if (todo.length > 0) {
@@ -279,7 +286,7 @@ export function CourseBuilder({ reportId, onReady }: { reportId: string | null; 
           </div>
           <p className="mt-1 text-sm font-semibold">{CERTIFICATE_NAME}</p>
           <p className="text-[13px] leading-relaxed text-readout-ink/70">
-            Issued when you complete every lesson. Valid for {CERTIFICATE_VALID_MONTHS} months.
+            Issued when you complete every lesson and pass each module quiz. Valid for {CERTIFICATE_VALID_MONTHS} months.
           </p>
         </div>
       </div>

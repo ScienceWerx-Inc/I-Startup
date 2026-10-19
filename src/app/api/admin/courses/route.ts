@@ -2,6 +2,7 @@ import type { UserRow } from '@/lib/account';
 import { currentAdmin, unauthorized } from '@/lib/admin-guard';
 import { byIds, isDatabaseConfigured } from '@/lib/db';
 import { listCheckpointAnswers, scoreByCourse } from '@/lib/gap-course/checkpoints';
+import { loadAttemptIndexes, quizScoreOf } from '@/lib/gap-course/quiz-scores';
 import { listAllJobs } from '@/lib/gap-course/service';
 import { listCourseCards } from '@/lib/gap-course/view';
 
@@ -15,16 +16,18 @@ export async function GET() {
 
   try {
     const jobs = await listAllJobs(500);
-    const [cards, users, answers] = await Promise.all([
+    const [cards, users, answers, indexes] = await Promise.all([
       listCourseCards(jobs),
       byIds<UserRow>('users', jobs.map((j) => j.user_id)),
       listCheckpointAnswers(),
+      loadAttemptIndexes(),
     ]);
     const scores = scoreByCourse(answers);
+    const quizScores = new Map(jobs.map((j) => [j.course_id, quizScoreOf(j, indexes)]));
     return Response.json({
       courses: cards.map((c) => {
         const u = users.get(c.userId);
-        return { ...c, courseScore: scores.get(c.courseId) ?? null, user_email: u?.email ?? null, user_name: u?.full_name ?? null };
+        return { ...c, courseScore: scores.get(c.courseId) ?? null, quizScore: quizScores.get(c.courseId) ?? null, user_email: u?.email ?? null, user_name: u?.full_name ?? null };
       }),
     });
   } catch (error) {

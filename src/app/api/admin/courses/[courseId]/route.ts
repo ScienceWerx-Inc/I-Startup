@@ -4,6 +4,7 @@ import { getUser } from '@/lib/account';
 import { currentAdmin, unauthorized } from '@/lib/admin-guard';
 import { isDatabaseConfigured } from '@/lib/db';
 import { listCheckpointAnswers, scoreByCourse } from '@/lib/gap-course/checkpoints';
+import { loadAttemptIndexes, quizReview, quizScoreOf } from '@/lib/gap-course/quiz-scores';
 import { certificateExpiry } from '@/lib/gap-course/shared';
 import { getCourseViewForAdmin } from '@/lib/gap-course/view';
 
@@ -28,12 +29,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cou
 
     const lessons = (job.modules ?? []).flatMap((m) => m.lessons);
     const repos = lmsRepos();
-    const [founder, contents, lessonProgress, answers] = await Promise.all([
+    const [founder, contents, lessonProgress, answers, indexes, quizzes] = await Promise.all([
       getUser(job.user_id),
       Promise.all(lessons.map((l) => repos.lessonContent.get(lessonContentId(l.id)))),
       Promise.all(lessons.map((l) => repos.lessonProgress.get(lessonProgressId(job.course_id, job.user_id, l.id)))),
       listCheckpointAnswers({ courseId: job.course_id }),
+      loadAttemptIndexes(job.user_id),
+      Promise.all(lessons.map((l) => (l.kind === 'quiz' && l.assessmentId ? quizReview(l.assessmentId, job.user_id) : null))),
     ]);
+    const quizByLesson = new Map(lessons.map((l, i) => [l.id, quizzes[i]]));
     const contentByLesson = new Map(contents.flatMap((c) => (c ? [[c.lessonId, c] as const] : [])));
     const progressByLesson = new Map(lessonProgress.flatMap((p) => (p ? [[p.lessonId, p] as const] : [])));
     const answerByLesson = new Map(answers.map((a) => [a.lesson_id, a]));
@@ -56,6 +60,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cou
       },
       plan: job.plan,
       score: { ...score, checkpoints: contents.filter((c) => c?.checkpoint).length },
+      quizScore: quizScoreOf(job, indexes),
       enrollment: enrollment
         ? {
             status: enrollment.status,
@@ -98,6 +103,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cou
             durationMin: l.durationMin,
             status: l.status,
             error: l.error ?? null,
+            kind: l.kind ?? 'lesson',
+            quiz: quizByLesson.get(l.id) ?? null,
             completed: completed.has(l.id),
             completedAt: progressByLesson.get(l.id)?.completedAt ?? null,
             answer: answerByLesson.has(l.id)

@@ -247,3 +247,75 @@ THE CHECKPOINT: one question about a situation like theirs, four options with id
     },
   };
 }
+
+/* ───────────────────────────────── quizzes ───────────────────────────────── */
+
+const QuizQuestionSchema = z.object({
+  type: z.enum(['mcq_single', 'mcq_multi', 'true_false']),
+  stem: z.string().describe('The question. Plain text, no markdown.'),
+  options: z
+    .array(z.object({ id: z.string(), label: z.string() }))
+    .describe('For true_false, exactly two options with ids "true" and "false".'),
+  correctOptionIds: z
+    .array(z.string())
+    .min(1)
+    .describe('One id for mcq_single and true_false; two or more for mcq_multi.'),
+  points: z.number().int().min(1).max(5),
+  difficulty: z.enum(['easy', 'medium', 'hard']),
+  explanation: z.string().describe('Why the right answer is right, addressed to the founder as "you". Always required.'),
+});
+
+export type QuizQuestion = z.infer<typeof QuizQuestionSchema>;
+
+/** How many questions a module quiz has (at most 10: the store reads a quiz's questions in one getMany). */
+export const QUIZ_QUESTIONS = 6;
+
+/**
+ * A module's graded quiz, drawn only from the lessons that module taught. ScienceWerx's
+ * assessment prompt (generateAssessment), framed for a founder and their startup. Only the
+ * three question types with unambiguous keys; anything ungradeable is dropped.
+ */
+export async function generateModuleQuiz(input: {
+  plan: GapPlan;
+  moduleTitle: string;
+  lessons: Array<{ title: string; brief: string; keyPoints: string[] }>;
+}): Promise<QuizQuestion[]> {
+  const { output } = await ai.generate({
+    output: { schema: z.object({ questions: z.array(QuizQuestionSchema) }) },
+    config: { temperature: 0.5 },
+    prompt: `You are writing ${QUIZ_QUESTIONS} questions for the graded quiz that closes the module "${input.moduleTitle}" of a personalised course for a startup founder.
+
+THE STARTUP
+${describeStartup(input.plan)}
+
+This is a GRADED QUIZ. It exists to measure whether the founder understood the material well enough to act on it. They need 70% to pass, have three attempts, and see feedback only after they submit.
+
+It may only draw on these lessons:
+${input.lessons.map((l) => `- ${l.title}: ${l.brief}\n${l.keyPoints.map((k) => `  · ${k}`).join('\n')}`).join('\n')}
+
+HOW TO WRITE THE QUESTIONS
+- Test understanding, not recall of wording. If a question can be answered by spotting a phrase that also appears in the lesson, it tests reading, not learning. Ask what follows from the idea, or what the founder should do in a situation the lesson did not state outright — ideally one like their own startup's.
+- Wrong options must be tempting: what a founder who half-understood would genuinely pick — a common misconception, a plausible overgeneralisation, the right idea applied to the wrong situation. An obviously silly option just narrows the guess.
+- One unambiguous right answer. If a careful person could argue for two, rewrite the question. Check each one before moving on.
+- Vary the difficulty across the set, and vary the type; do not make them all mcq_single.
+- Keep stems short. A paragraph of setup followed by "which of the following" is a reading test with a question attached.
+- Never ask about the course itself (its structure, its modules, what a lesson covered). Ask about the subject.
+- Plain text. No markdown anywhere. Invent no statistics or named sources.
+
+FORMATS
+- mcq_single: four options, exactly one id in correctOptionIds.
+- mcq_multi: four or five options, two or three correct. Use it when the point genuinely has several parts.
+- true_false: exactly two options, ids "true" and "false", one correct id. Use it for a claim worth confronting directly.
+
+The explanation is required on every question, written to the founder as "you": why the answer is right and, where a wrong option was tempting, why that one is not. Do not restate the question.`,
+  });
+  const questions = (output?.questions ?? []).filter((q) => {
+    if (!q.stem.trim() || !q.explanation.trim() || q.correctOptionIds.length === 0) return false;
+    if (q.type === 'true_false') return q.correctOptionIds.length === 1 && ['true', 'false'].includes(q.correctOptionIds[0]);
+    const ids = new Set(q.options.map((o) => o.id));
+    if (q.options.length < 2 || ids.size !== q.options.length || !q.correctOptionIds.every((id) => ids.has(id))) return false;
+    return q.type === 'mcq_single' ? q.correctOptionIds.length === 1 : q.correctOptionIds.length >= 2;
+  });
+  if (questions.length < 3) throw new Error('The model returned too few gradeable questions.');
+  return questions.slice(0, QUIZ_QUESTIONS);
+}

@@ -6,7 +6,7 @@ import type { PublicCourseJob } from '@/lib/gap-course/shared';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-// One model call per request at most (an outline or a lesson).
+// One model call per request at most (an outline, a lesson or a quiz).
 export const maxDuration = 120;
 
 /** What the client sees of a job: no plan internals, no other founder's data. */
@@ -22,7 +22,7 @@ function publicJob(job: CourseJob): PublicCourseJob {
     modules: (job.modules ?? []).map((m) => ({
       id: m.id,
       title: m.title,
-      lessons: m.lessons.map((l) => ({ id: l.id, title: l.title, status: l.status })),
+      lessons: m.lessons.map((l) => ({ id: l.id, title: l.title, status: l.status, kind: l.kind ?? 'lesson' })),
     })),
   };
 }
@@ -41,7 +41,8 @@ export async function GET(request: Request) {
 
 const PostSchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('start'), reportId: ReportId }),
-  z.object({ op: z.literal('lesson'), reportId: ReportId, lessonId: z.string().regex(/^les_[0-9a-f-]{1,40}$/) }),
+  // A lesson, or a module's quiz (written through the same step once its lessons are done).
+  z.object({ op: z.literal('lesson'), reportId: ReportId, lessonId: z.string().regex(/^(les|quiz)_[0-9a-f-]{1,40}$/) }),
   z.object({ op: z.literal('finish'), reportId: ReportId }),
 ]);
 

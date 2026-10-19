@@ -27,7 +27,7 @@ export default async function CertificatePage({ params }: { params: Promise<{ co
     return (
       <div className="mx-auto max-w-xl rounded-card bg-surface p-8 text-center">
         <p className="text-lg font-semibold text-ink">Not certified yet</p>
-        <p className="mt-1 text-sm text-mut">Complete every lesson of the course to earn the {CERTIFICATE_NAME}.</p>
+        <p className="mt-1 text-sm text-mut">Complete every lesson and pass each module quiz to earn the {CERTIFICATE_NAME}.</p>
         <Link href={`/learn/${courseId}`} className={buttonVariants({ className: 'mt-5' })}>
           Back to the course
         </Link>

@@ -1,13 +1,15 @@
 import { randomUUID } from 'node:crypto';
 
+import { assessmentRepos } from '@/brico/assessment';
 import { lessonContentId, lms, lmsRepos } from '@/brico/lms';
+import { questionKeyId, type AnswerKey, type Assessment, type Question, type QuestionPayload } from '@/features/assessment/domain';
 import type { Course, CurriculumSection, LessonContent } from '@/features/lms/domain';
 import { col, db, isAlreadyExists, nowIso } from '@/lib/db';
 import { courseAccess, entitlements } from '@/lib/payments';
 import type { StartupProfile } from '@/modules/istartup-score/assessment/bank';
 import type { Answers } from '@/modules/istartup-score/assessment/scoring';
 
-import { generateLesson, generateOutline } from './ai';
+import { generateLesson, generateModuleQuiz, generateOutline, type QuizQuestion } from './ai';
 import { planFromAnswers, type GapPlan } from './plan';
 import { EXERCISE_PREFIX, type JobStatus, type LessonStatus } from './shared';
 
@@ -17,6 +19,9 @@ import { EXERCISE_PREFIX, type JobStatus, type LessonStatus } from './shared';
  *   start   → plan the gaps (pure) and generate the outline     (one model call)
  *   lesson  → write one lesson into the brick's lessonContent    (one model call each)
  *   finish  → create the Course, publishCurriculum, publishCourse, enroll the founder
+ *
+ * Each module ends with a graded quiz, written as one more step once that module's
+ * lessons are done (it draws only on them), and stored in the assessment brick.
  *
  * The client drives the steps (a few lessons at a time), so no request runs long and a
  * closed tab simply resumes where it stopped. Every step is idempotent, and progress
@@ -33,7 +38,22 @@ export interface JobLesson {
   status: LessonStatus;
   startedAt?: string;
   error?: string;
+  /** 'quiz' for the module's closing graded quiz; absent means a written lesson. */
+  kind?: 'lesson' | 'quiz';
+  /** A quiz's assessment, once written. */
+  assessmentId?: string;
 }
+
+/** A module quiz measures: limited attempts, feedback after submitting, 70% to pass. */
+export const QUIZ_POLICY = {
+  maxAttempts: 3,
+  scoring: 'best' as const,
+  shuffleQuestions: true,
+  feedback: 'after_attempt' as const,
+  passPercent: 70,
+};
+
+export const isQuiz = (l: Pick<JobLesson, 'kind'>) => l.kind === 'quiz';
 
 export interface JobModule {
   id: string;
@@ -147,14 +167,25 @@ export async function startCourse(userId: string, reportId: string): Promise<Cou
       id: `sec_${randomUUID().slice(0, 8)}`,
       key: m.key,
       title: m.title,
-      lessons: m.lessons.map((l) => ({
-        id: `les_${randomUUID().slice(0, 10)}`,
-        title: l.title,
-        brief: l.brief,
-        focusQuestionIds: l.focusQuestionIds,
-        durationMin: l.durationMin,
-        status: 'pending' as const,
-      })),
+      lessons: [
+        ...m.lessons.map((l) => ({
+          id: `les_${randomUUID().slice(0, 10)}`,
+          title: l.title,
+          brief: l.brief,
+          focusQuestionIds: l.focusQuestionIds,
+          durationMin: l.durationMin,
+          status: 'pending' as const,
+        })),
+        {
+          id: `quiz_${randomUUID().slice(0, 10)}`,
+          title: `Quiz: ${m.title}`,
+          brief: 'The graded quiz on this module.',
+          focusQuestionIds: [],
+          durationMin: 6,
+          status: 'pending' as const,
+          kind: 'quiz' as const,
+        },
+      ],
     }));
     const patch = {
       status: 'writing' as const,
@@ -190,9 +221,14 @@ export async function writeLesson(userId: string, reportId: string, lessonId: st
     const snap = await tx.get(ref);
     const job = snap.data() as CourseJob | undefined;
     if (!job || job.user_id !== userId || !job.modules) throw new CourseError('Course not found.', 404);
-    const lesson = job.modules.flatMap((m) => m.lessons).find((l) => l.id === lessonId);
-    if (!lesson) throw new CourseError('Lesson not found.', 404);
+    const owner = job.modules.find((m) => m.lessons.some((l) => l.id === lessonId));
+    const lesson = owner?.lessons.find((l) => l.id === lessonId);
+    if (!owner || !lesson) throw new CourseError('Lesson not found.', 404);
     if (lesson.status === 'done') return { job, run: false };
+    // A quiz is written from its module's lessons, so it waits for them.
+    if (isQuiz(lesson) && owner.lessons.some((l) => !isQuiz(l) && l.status !== 'done')) {
+      throw new CourseError('The quiz waits for its lessons.', 409);
+    }
     if (lesson.status === 'running' && !isStale(lesson.startedAt)) return { job, run: false };
     const next = { ...job, modules: patchLesson(job, lessonId, { status: 'running', startedAt: nowIso(), error: undefined }) };
     tx.update(ref, { modules: next.modules, updated_at: nowIso() });
@@ -202,10 +238,15 @@ export async function writeLesson(userId: string, reportId: string, lessonId: st
 
   const job = claim.job;
   const modules = job.modules!;
-  const order = modules.flatMap((m) => m.lessons.map((l) => ({ module: m, lesson: l })));
+  const quizModule = modules.find((m) => m.lessons.some((l) => l.id === lessonId && isQuiz(l)));
+  if (quizModule) return writeQuiz(job, quizModule, lessonId);
+
+  // Quizzes are not part of the reading order the writer is told about.
+  const order = modules.flatMap((m) => m.lessons.filter((l) => !isQuiz(l)).map((l) => ({ module: m, lesson: l })));
   const index = order.findIndex((x) => x.lesson.id === lessonId);
   const { module, lesson } = order[index];
   const planModule = job.plan.modules.find((m) => m.key === module.key) ?? job.plan.modules[0];
+  const taught = module.lessons.filter((l) => !isQuiz(l));
 
   let status: LessonStatus = 'done';
   let error: string | undefined;
@@ -217,7 +258,7 @@ export async function writeLesson(userId: string, reportId: string, lessonId: st
       lesson,
       previousTitles: order.slice(0, index).map((x) => x.lesson.title),
       nextTitle: order[index + 1]?.lesson.title,
-      isWorkshop: module.lessons.length > 1 && module.lessons[module.lessons.length - 1].id === lessonId,
+      isWorkshop: taught.length > 1 && taught[taught.length - 1].id === lessonId,
     });
     const content: Omit<LessonContent, 'createdAt' | 'updatedAt' | 'version'> = {
       id: lessonContentId(lessonId),
@@ -248,6 +289,92 @@ export async function writeLesson(userId: string, reportId: string, lessonId: st
   return db().runTransaction(async (tx) => {
     const current = (await tx.get(ref)).data() as CourseJob;
     const next = { ...current, modules: patchLesson(current, lessonId, { status, error, startedAt: undefined }) };
+    tx.update(ref, { modules: next.modules, updated_at: nowIso() });
+    return next;
+  });
+}
+
+/* ─────────────────────────────────── quizzes ─────────────────────────────────── */
+
+const assessmentIdFor = (quizLessonId: string) => `asm_${quizLessonId}`;
+
+function payloadOf(q: QuizQuestion): { payload: QuestionPayload; key: AnswerKey } {
+  if (q.type === 'true_false') {
+    return { payload: { kind: 'true_false' }, key: { kind: 'true_false', correct: q.correctOptionIds[0] === 'true' } };
+  }
+  if (q.type === 'mcq_multi') {
+    return {
+      payload: { kind: 'mcq_multi', options: q.options, shuffle: true },
+      key: { kind: 'mcq_multi', correctOptionIds: q.correctOptionIds, partialCredit: false },
+    };
+  }
+  return {
+    payload: { kind: 'mcq_single', options: q.options, shuffle: true },
+    key: { kind: 'mcq_single', correctOptionId: q.correctOptionIds[0] },
+  };
+}
+
+/** Writes a module's quiz into the assessment brick: questions, their keys (apart), and the quiz. */
+async function writeQuiz(job: CourseJob, module: JobModule, quizLessonId: string): Promise<CourseJob> {
+  const ref = jobRef(job.id);
+  const taught = module.lessons.filter((l) => !isQuiz(l));
+  let patch: Partial<JobLesson> = { status: 'done', startedAt: undefined, error: undefined };
+  try {
+    const contents = await Promise.all(taught.map((l) => lmsRepos().lessonContent.get(lessonContentId(l.id))));
+    const questions = await generateModuleQuiz({
+      plan: job.plan,
+      moduleTitle: module.title,
+      lessons: taught.map((l, i) => ({ title: l.title, brief: l.brief, keyPoints: contents[i]?.keyPoints ?? [] })),
+    });
+
+    const repos = assessmentRepos();
+    const assessmentId = assessmentIdFor(quizLessonId);
+    const stored = await Promise.all(
+      questions.map(async (q, i) => {
+        const id = `q_${quizLessonId}_${i + 1}`;
+        const { payload, key } = payloadOf(q);
+        const question: Omit<Question, 'createdAt' | 'updatedAt' | 'version'> = {
+          id,
+          bankId: assessmentId,
+          type: q.type,
+          stem: q.stem,
+          payload,
+          points: q.points,
+          difficulty: q.difficulty,
+          tags: [module.key],
+          explanation: q.explanation,
+        };
+        const { created } = await repos.questions.createIfAbsent(id, question);
+        if (!created) await repos.questions.update(id, question);
+        const keyId = questionKeyId(id);
+        const keyRow = { id: keyId, questionId: id, key };
+        const k = await repos.questionKeys.createIfAbsent(keyId, keyRow);
+        if (!k.created) await repos.questionKeys.update(keyId, keyRow);
+        return { id, points: q.points };
+      }),
+    );
+    const quiz: Omit<Assessment, 'createdAt' | 'updatedAt' | 'version'> = {
+      id: assessmentId,
+      ownerRef: `lms:lesson:${quizLessonId}`,
+      mode: 'quiz',
+      title: module.lessons.find((l) => l.id === quizLessonId)?.title ?? `Quiz: ${module.title}`,
+      description: `Covers: ${taught.map((l) => l.title).join('; ')}`,
+      selection: { mode: 'fixed', questionIds: stored.map((q) => q.id) },
+      policy: QUIZ_POLICY,
+      totalPoints: stored.reduce((sum, q) => sum + q.points, 0),
+      active: true,
+    };
+    const { created } = await repos.assessments.createIfAbsent(assessmentId, quiz);
+    if (!created) await repos.assessments.update(assessmentId, quiz);
+    patch = { ...patch, assessmentId };
+  } catch (err) {
+    console.error(`Quiz ${quizLessonId} failed:`, err);
+    patch = { status: 'error', startedAt: undefined, error: 'This quiz could not be written. Retrying…' };
+  }
+
+  return db().runTransaction(async (tx) => {
+    const current = (await tx.get(ref)).data() as CourseJob;
+    const next = { ...current, modules: patchLesson(current, quizLessonId, patch) };
     tx.update(ref, { modules: next.modules, updated_at: nowIso() });
     return next;
   });
@@ -291,7 +418,11 @@ export async function finishCourse(userId: string, reportId: string): Promise<Co
       prerequisiteCourseIds: [],
       status: 'draft',
       curriculumVersion: 0,
-      completionRule: { kind: 'all_required', requireAssessmentsPassed: false },
+      // Quizzes must be passed, not merely opened, for the course to finish.
+      completionRule: {
+        kind: 'all_required',
+        requireAssessmentsPassed: job.modules!.some((m) => m.lessons.some(isQuiz)),
+      },
       dripMode: 'none',
       certificateEnabled: true,
       enrollmentCount: 0,
@@ -311,6 +442,7 @@ export async function finishCourse(userId: string, reportId: string): Promise<Co
           durationSec: l.durationMin * 60,
           required: true,
           previewable: false,
+          ...(l.assessmentId ? { assessmentId: l.assessmentId } : {}),
         })),
       }));
       await service.publishCurriculum({ courseId: job.course_id, sections });

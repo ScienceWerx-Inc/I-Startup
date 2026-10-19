@@ -7,6 +7,7 @@ import { sessionUserId } from '@/lib/account';
 import { getCourseView } from '@/lib/gap-course/view';
 import { Checkpoint, CompleteLesson } from '@/modules/gap-course/lesson-actions';
 import { LessonBody } from '@/modules/gap-course/lesson-body';
+import { ModuleQuiz } from '@/modules/gap-course/module-quiz';
 import { LessonReader } from '@/modules/lessons/lesson-reader';
 import { Eyebrow } from '@/modules/istartup-score/components/chrome';
 
@@ -24,15 +25,45 @@ export default async function LessonPage({ params }: { params: Promise<{ courseI
   const access = await lms().canAccessLesson({ courseId, userId, lessonId });
   if (!access.allowed) notFound();
 
-  const content = await lmsRepos().lessonContent.get(lessonContentId(lessonId));
-  if (!content) notFound();
-
   const { curriculum, completed } = view;
   const order = curriculum.sections.flatMap((s, si) => s.lessons.map((l) => ({ lesson: l, section: s, si })));
   const index = order.findIndex((x) => x.lesson.id === lessonId);
   const { lesson, section, si } = order[index];
   const prev = order[index - 1];
   const next = order[index + 1];
+
+  // A module quiz has no reading: the quiz is the lesson, and passing it completes it.
+  if (lesson.assessmentId) {
+    return (
+      <article className="mx-auto max-w-3xl">
+        <Link href={`/learn/${courseId}`} className="text-sm text-mut hover:text-ink">
+          ← {view.course?.title ?? 'Course'}
+        </Link>
+        <Eyebrow className="mt-6">
+          Module {si + 1} · {section.title} · Lesson {index + 1} of {order.length}
+        </Eyebrow>
+        <h1 className="mt-2 text-3xl font-semibold leading-tight tracking-tight text-ink">{lesson.title}</h1>
+        <div className="mt-6">
+          <ModuleQuiz
+            courseId={courseId}
+            lessonId={lessonId}
+            nextHref={next ? `/learn/${courseId}/${next.lesson.id}` : `/learn/${courseId}`}
+            certificateHref={`/learn/${courseId}/certificate`}
+          />
+        </div>
+        {prev ? (
+          <div className="mt-10 border-t border-line pt-6">
+            <Link href={`/learn/${courseId}/${prev.lesson.id}`} className="text-sm text-mut hover:text-ink">
+              ← {prev.lesson.title}
+            </Link>
+          </div>
+        ) : null}
+      </article>
+    );
+  }
+
+  const content = await lmsRepos().lessonContent.get(lessonContentId(lessonId));
+  if (!content) notFound();
 
   return (
     <article className="mx-auto max-w-3xl">

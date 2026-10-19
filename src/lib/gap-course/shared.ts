@@ -18,7 +18,11 @@ export interface PublicCourseJob {
   subtitle: string | null;
   error: string | null;
   plan: { key: string; title: string; percent: number; gaps: string[] }[];
-  modules: { id: string; title: string; lessons: { id: string; title: string; status: LessonStatus }[] }[];
+  modules: {
+    id: string;
+    title: string;
+    lessons: { id: string; title: string; status: LessonStatus; kind: 'lesson' | 'quiz' }[];
+  }[];
 }
 
 /** The certificate a completed course earns. */

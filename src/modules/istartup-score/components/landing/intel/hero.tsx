@@ -69,8 +69,8 @@ export function Hero({ reportPrice }: { reportPrice: string }) {
 
       <motion.div className="relative aspect-[4/3] sm:aspect-[1690/931] xl:absolute xl:inset-y-0 xl:right-0 xl:h-full xl:aspect-[1690/931]" {...up(0.1)}>
         <Image
-          src="/brand/hero-presentation.webp"
-          alt="A founder presenting a business overview dashboard on a large screen to a colleague in a meeting room overlooking the city"
+          src="/brand/hero-report.webp"
+          alt="A founder presenting an iStartup Score report on a large screen to a colleague in a meeting room overlooking the city"
           fill
           sizes="(min-width: 1280px) 1200px, 100vw"
           loading="eager"

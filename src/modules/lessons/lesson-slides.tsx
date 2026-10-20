@@ -200,7 +200,7 @@ export function LessonSlides({ content, title, finishTargetId, record, exercise 
       )}
     >
       {/* Progress: one segment per slide, each a jump target. */}
-      <div className="flex gap-1 px-4 pt-4" role="tablist" aria-label="Slides">
+      <div className="relative z-10 flex gap-1 bg-surface px-4 pb-2 pt-4" role="tablist" aria-label="Slides">
         {slides.map((s, i) => (
           <button
             key={i}
@@ -244,11 +244,17 @@ export function LessonSlides({ content, title, finishTargetId, record, exercise 
             animate="center"
             exit="exit"
             transition={{ duration: reduceMotion ? 0.15 : 0.38, ease: [0.22, 1, 0.36, 1] }}
-            className={cn('absolute inset-0 overflow-y-auto bg-gradient-to-br p-6 sm:p-10', BACKDROP[slide.kind])}
+            // The edges fade, so a tall slide reads as "scroll for more" rather than cut off.
+            className={cn(
+              'absolute inset-0 overflow-y-auto bg-gradient-to-br p-6 [mask-image:linear-gradient(to_bottom,transparent,black_1.25rem,black_calc(100%-1.25rem),transparent)] sm:p-10',
+              BACKDROP[slide.kind],
+            )}
             aria-live="polite"
           >
             {!reduceMotion && <Orbs seed={index} />}
-            <div className="relative mx-auto flex h-full max-w-3xl flex-col justify-center">
+            {/* min-h-full, not h-full: a short slide is centred, a tall one (a long self-check)
+                grows from the top and scrolls inside the stage instead of clipping both ends. */}
+            <div className="relative mx-auto flex min-h-full max-w-3xl flex-col justify-center">
               <SlideBody slide={slide} content={content} reduceMotion={reduceMotion} total={slides.length} record={record} />
             </div>
           </motion.div>

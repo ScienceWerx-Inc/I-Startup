@@ -4,6 +4,9 @@ import { ai, MODEL } from '@/ai/genkit';
 import { normalizeFlowchart } from '@/lib/lessons/mermaid-source';
 import { toPlainParagraphs } from '@/lib/lessons/plain-prose';
 
+import { usageFrom } from '@/lib/ai-pricing';
+import { recordAiUsage } from '@/lib/ai-usage';
+
 import { memoize } from './memo';
 import type { GapFocus, GapModule, GapPlan } from './plan';
 
@@ -23,23 +26,31 @@ import type { GapFocus, GapModule, GapPlan } from './plan';
  * prompt returns the stored output instead of calling the model again. The raw output is
  * what is cached; the clean-up after it (clamping, filtering) runs either way.
  */
+/** Which course a call is for, so the cost report can total per course. */
+export interface CallMeta {
+  courseId?: string;
+}
+
 async function generateCached<S extends z.ZodTypeAny>(
   kind: 'outline' | 'lesson' | 'quiz',
   schema: S,
   temperature: number,
   prompt: string,
+  meta: CallMeta = {},
 ): Promise<z.infer<S>> {
   return memoize(
     { kind, model: MODEL, temperature, schemaVersion: '1', prompt },
     async () => {
-      const { output } = await ai.generate({ output: { schema }, config: { temperature }, prompt });
-      if (!output) throw new Error(`The model returned no ${kind}.`);
-      return output as z.infer<S>;
+      const res = await ai.generate({ output: { schema }, config: { temperature }, prompt });
+      if (!res.output) throw new Error(`The model returned no ${kind}.`);
+      return { value: res.output as z.infer<S>, usage: usageFrom(res.usage) };
     },
     (value) => {
       const parsed = schema.safeParse(value);
       return parsed.success ? (parsed.data as z.infer<S>) : null;
     },
+    undefined,
+    (outcome) => recordAiUsage({ feature: kind, ...outcome, courseId: meta.courseId }),
   );
 }
 
@@ -112,7 +123,7 @@ const describeModule = (m: GapModule) =>
     ...m.focus.map(describeFocus),
   ].join('\n');
 
-export async function generateOutline(plan: GapPlan): Promise<CourseOutline> {
+export async function generateOutline(plan: GapPlan, meta: CallMeta = {}): Promise<CourseOutline> {
   const output = await generateCached('outline', OutlineSchema, 0.6, `You are designing the structure of a practical, personalised course for a startup founder. They just took the iSTARTUP investment-readiness assessment; this course closes the specific gaps it found. The founder will work through it lesson by lesson and be assessed against it, so it has to hold up as a plan rather than read well as a pitch.
 
 THE STARTUP
@@ -133,7 +144,7 @@ HOW TO BUILD THE OUTLINE
 HARD RULES
 - Plain text everywhere. No markdown, no asterisks, no headings inside any field.
 - Invent no statistics, studies, dates or quotations. If a claim would need a citation, teach the idea without the number.
-- Do not produce quiz, test or recap lessons; those are handled separately.`);
+- Do not produce quiz, test or recap lessons; those are handled separately.`, meta);
   return clampOutline(output, plan);
 }
 
@@ -198,7 +209,7 @@ export async function generateLesson(input: {
   nextTitle?: string;
   /** The module's closing workshop: the founder does something rather than reads. */
   isWorkshop: boolean;
-}): Promise<GeneratedLesson> {
+}, meta: CallMeta = {}): Promise<GeneratedLesson> {
   const focus = input.module.focus.filter((f) => input.lesson.focusQuestionIds.includes(f.questionId));
   const targetWords = targetWordsFor(input.lesson.durationMin);
 
@@ -249,7 +260,7 @@ THE DIAGRAM: include \`mermaid\` ONLY if this lesson genuinely describes a proce
 
 THE EXERCISE: a concrete task the founder does for their own startup this week, with a clear deliverable.
 
-THE CHECKPOINT: one question about a situation like theirs, four options with ids "a", "b", "c", "d", exactly one right. It must test whether they understood the IDEA — a question answerable by recognising a phrase from the text tests nothing. Wrong options are things a founder who half-followed would actually pick, not obvious throwaways.`);
+THE CHECKPOINT: one question about a situation like theirs, four options with ids "a", "b", "c", "d", exactly one right. It must test whether they understood the IDEA — a question answerable by recognising a phrase from the text tests nothing. Wrong options are things a founder who half-followed would actually pick, not obvious throwaways.`, meta);
   const diagram = output.mermaid ? normalizeFlowchart(output.mermaid) : '';
   return {
     ...output,
@@ -295,7 +306,7 @@ export async function generateModuleQuiz(input: {
   plan: GapPlan;
   moduleTitle: string;
   lessons: Array<{ title: string; brief: string; keyPoints: string[] }>;
-}): Promise<QuizQuestion[]> {
+}, meta: CallMeta = {}): Promise<QuizQuestion[]> {
   const output = await generateCached('quiz', z.object({ questions: z.array(QuizQuestionSchema) }), 0.5, `You are writing ${QUIZ_QUESTIONS} questions for the graded quiz that closes the module "${input.moduleTitle}" of a personalised course for a startup founder.
 
 THE STARTUP
@@ -320,7 +331,7 @@ FORMATS
 - mcq_multi: four or five options, two or three correct. Use it when the point genuinely has several parts.
 - true_false: exactly two options, ids "true" and "false", one correct id. Use it for a claim worth confronting directly.
 
-The explanation is required on every question, written to the founder as "you": why the answer is right and, where a wrong option was tempting, why that one is not. Do not restate the question.`);
+The explanation is required on every question, written to the founder as "you": why the answer is right and, where a wrong option was tempting, why that one is not. Do not restate the question.`, meta);
   const questions = (output?.questions ?? []).filter((q) => {
     if (!q.stem.trim() || !q.explanation.trim() || q.correctOptionIds.length === 0) return false;
     if (q.type === 'true_false') return q.correctOptionIds.length === 1 && ['true', 'false'].includes(q.correctOptionIds[0]);

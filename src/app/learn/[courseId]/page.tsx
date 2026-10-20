@@ -6,9 +6,12 @@ import { ArrowRight, Award, Check, Circle, ClipboardList, Clock } from 'lucide-r
 import { buttonVariants } from '@/components/ui/button';
 import { sessionUserId } from '@/lib/account';
 import { CERTIFICATE_NAME, CERTIFICATE_VALID_MONTHS, certificateExpiry, isCertificateExpired } from '@/lib/gap-course/shared';
+import { getCourseGrade } from '@/lib/gap-course/grades';
+import { courseReview } from '@/lib/gap-course/quiz-run';
 import { getCourseView } from '@/lib/gap-course/view';
 import { cn } from '@/lib/utils';
 import { CourseBuilder } from '@/modules/gap-course/course-builder';
+import { ReviewPanel } from '@/modules/gap-course/review-panel';
 import { Eyebrow, Panel } from '@/modules/istartup-score/components/chrome';
 
 export const dynamic = 'force-dynamic';
@@ -25,7 +28,21 @@ export default async function CoursePage({ params }: { params: Promise<{ courseI
 
   const { job, course, curriculum, progress, completed, certificate } = view;
 
-  // Still being generated (or interrupted): resume building right here.
+  // Still being generated: a co-founder waits for it; the founder it is for resumes it here.
+  if ((job.status !== 'ready' || !course || !curriculum) && job.user_id !== userId) {
+    return (
+      <>
+        <BackLink />
+        <Panel className="mt-4">
+          <p className="text-lg font-semibold text-ink">Your course is being prepared</p>
+          <p className="mt-1 text-sm text-mut">
+            It&apos;s built from your lead founder&apos;s assessment. Once it&apos;s ready it appears here for you, with your
+            own progress, quizzes and certificate.
+          </p>
+        </Panel>
+      </>
+    );
+  }
   if (job.status !== 'ready' || !course || !curriculum) {
     return (
       <>
@@ -40,6 +57,10 @@ export default async function CoursePage({ params }: { params: Promise<{ courseI
   const lessons = curriculum.sections.flatMap((s) => s.lessons);
   const next = lessons.find((l) => !completed.has(l.id));
   const percent = progress?.percent ?? 0;
+  const [grade, review] = await Promise.all([
+    getCourseGrade(courseId, userId),
+    courseReview(userId, courseId).catch(() => null),
+  ]);
 
   return (
     <>
@@ -63,6 +84,16 @@ export default async function CoursePage({ params }: { params: Promise<{ courseI
                 <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${percent}%` }} />
               </div>
             </div>
+
+            {grade?.percent != null ? (
+              <p className="mt-4 text-sm text-mut">
+                Your course grade:{' '}
+                <span className="font-mono font-semibold text-ink">
+                  {grade.percent}% · {grade.letter}
+                </span>{' '}
+                ({grade.passed} of {grade.quizzes} module quizzes passed)
+              </p>
+            ) : null}
 
             {next ? (
               <Link href={`/learn/${courseId}/${next.id}`} className={buttonVariants({ size: 'lg', className: 'mt-6' })}>
@@ -114,6 +145,7 @@ export default async function CoursePage({ params }: { params: Promise<{ courseI
               </Panel>
             );
           })}
+          {review ? <ReviewPanel review={review} courseId={courseId} /> : null}
         </div>
 
         <aside className="space-y-6">

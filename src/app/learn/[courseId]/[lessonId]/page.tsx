@@ -77,14 +77,14 @@ export default async function LessonPage({ params }: { params: Promise<{ courseI
       <h1 className="mt-2 text-3xl font-semibold leading-tight tracking-tight text-ink">{lesson.title}</h1>
 
       {/* Read or Slides: the same lesson two ways; the choice is remembered in the browser. */}
-      <LessonReader content={content} title={lesson.title} finishTargetId="lesson-complete" record={{ courseId, lessonId }}>
+      <LessonReader content={content} title={lesson.title} finishTargetId="lesson-complete" record={{ courseId, lessonId, learnerId: userId }}>
         <div className="mt-6">
           <LessonBody content={content} title={lesson.title} />
         </div>
 
         {content.checkpoint ? (
           <div className="mt-6">
-            <Checkpoint checkpoint={content.checkpoint} record={{ courseId, lessonId }} />
+            <Checkpoint checkpoint={content.checkpoint} record={{ courseId, lessonId, learnerId: userId }} />
           </div>
         ) : null}
       </LessonReader>

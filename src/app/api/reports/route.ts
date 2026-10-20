@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { sessionUserId, type UserRow } from '@/lib/account';
+import { ensureCompany } from '@/lib/company';
 import { currentAdmin, unauthorized } from '@/lib/admin-guard';
 import { byIds, col, isDatabaseConfigured, newestFirst, nowIso, rows } from '@/lib/db';
 import { GeoSchema, ReportPayloadSchema, type ReportRow } from '@/lib/reports';
@@ -40,6 +41,8 @@ export async function POST(request: Request) {
   });
 
   const userId = await sessionUserId();
+  // The company the assessment is for: its certificate and course belong to the whole team.
+  const company = userId ? await ensureCompany(userId).catch(() => null) : null;
 
   try {
     const id = randomUUID();
@@ -57,6 +60,7 @@ export async function POST(request: Request) {
       region: geo.region ?? null,
       city: decodeURIComponent(geo.city ?? '') || null,
       created_at: nowIso(),
+      ...(company ? { company_id: company.id } : {}),
     };
     await col('reports').doc(id).create(report);
     return Response.json({ id, report: { id, ...report } }, { status: 201 });

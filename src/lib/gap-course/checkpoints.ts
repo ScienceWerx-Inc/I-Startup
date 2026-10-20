@@ -20,7 +20,10 @@ export interface CheckpointAnswerRow {
   answered_at: string;
 }
 
-const answerId = (courseId: string, lessonId: string) => `${courseId}_${lessonId}`;
+/** Per founder: co-founders on one course each keep their own first answer. */
+const answerId = (courseId: string, lessonId: string, userId: string) => `${courseId}_${lessonId}_${userId}`;
+/** The id used before courses had several learners (only ever the course's own founder). */
+const legacyAnswerId = (courseId: string, lessonId: string) => `${courseId}_${lessonId}`;
 
 export async function recordCheckpointAnswer(
   userId: string,
@@ -45,8 +48,10 @@ export async function recordCheckpointAnswer(
     correct,
     answered_at: nowIso(),
   };
+  const legacy = await col('checkpointAnswers').doc(legacyAnswerId(courseId, lessonId)).get();
+  if (legacy.exists && legacy.get('user_id') === userId) return { correct, recorded: false };
   try {
-    await col('checkpointAnswers').doc(answerId(courseId, lessonId)).create(row);
+    await col('checkpointAnswers').doc(answerId(courseId, lessonId, userId)).create(row);
     return { correct, recorded: true };
   } catch (error) {
     if (isAlreadyExists(error)) return { correct, recorded: false };
@@ -69,15 +74,19 @@ export interface CourseScore {
   percent: number | null;
 }
 
-/** Course scores keyed by course id. */
+/** The key of one founder's self-check score on one course. */
+export const scoreKey = (courseId: string, userId: string) => `${courseId}|${userId}`;
+
+/** Self-check scores keyed by `scoreKey(course, founder)`: co-founders are scored apart. */
 export function scoreByCourse(answers: CheckpointAnswerRow[]): Map<string, CourseScore> {
   const out = new Map<string, CourseScore>();
   for (const a of answers) {
-    const s = out.get(a.course_id) ?? { correct: 0, answered: 0, percent: null };
+    const key = scoreKey(a.course_id, a.user_id);
+    const s = out.get(key) ?? { correct: 0, answered: 0, percent: null };
     s.answered += 1;
     if (a.correct) s.correct += 1;
     s.percent = Math.round((s.correct / s.answered) * 100);
-    out.set(a.course_id, s);
+    out.set(key, s);
   }
   return out;
 }

@@ -110,7 +110,7 @@ interface Props {
   /** Where "Finish" on the last slide sends the learner (the complete button). */
   finishTargetId?: string;
   /** Saves the founder's first checkpoint answer (the course score). */
-  record?: { courseId: string; lessonId: string };
+  record?: { courseId: string; lessonId: string; learnerId?: string };
   /** The lesson's "apply it to your startup" task, given its own slide before the self-check. */
   exercise?: string;
 }
@@ -386,7 +386,7 @@ function SlideBody({
   content: Content;
   reduceMotion: boolean;
   total: number;
-  record?: { courseId: string; lessonId: string };
+  record?: { courseId: string; lessonId: string; learnerId?: string };
 }) {
   switch (slide.kind) {
     case 'title':

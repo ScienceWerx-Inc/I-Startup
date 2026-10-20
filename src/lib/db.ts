@@ -29,6 +29,12 @@ export const COLLECTIONS = {
   checkpointAnswers: 'istartup_checkpoint_answers',
   /** `{sha256 of the exact request}` → a memoized model output (see lib/gap-course/memo.ts). */
   aiCache: 'istartup_ai_cache',
+  /** `{id}` → a startup and its team (lead + co-founders, invites); see lib/company.ts. */
+  companies: 'istartup_companies',
+  /** `{courseId}_{userId}` → one founder's grade on one course, grouped by `company_id`. */
+  courseGrades: 'istartup_course_grades',
+  /** One row per model call: feature, tokens, cost, cache hit or miss (see lib/ai-pricing.ts). */
+  aiUsage: 'istartup_ai_usage',
 } as const;
 
 export function isDatabaseConfigured(): boolean {

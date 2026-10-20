@@ -192,11 +192,14 @@ export const SCORE_CERTIFICATE_NAME = 'iSTARTUP Readiness Certificate';
 /** The readiness certificate's number, derived from its report: stable, never stored. */
 export const scoreCertificateCode = (reportId: string) => `IS-${reportId.replace(/-/g, '').slice(0, 10).toUpperCase()}`;
 
-/** Issued with every saved assessment; carries the startup's score and expires after six months. */
+/**
+ * The company's own certificate, issued with every saved assessment: the startup, its score,
+ * band and dimensions, expiring after six months. Company-only — the founders each have a
+ * 411 Certificate from the course.
+ */
 export function ScoreCertificate({
   reportId,
   startupName,
-  founderName,
   score,
   maxScore,
   band,
@@ -205,7 +208,6 @@ export function ScoreCertificate({
 }: {
   reportId: string;
   startupName: string;
-  founderName: string | null;
   score: number;
   maxScore: number;
   band: string;
@@ -243,7 +245,7 @@ export function ScoreCertificate({
     >
       <p className={cn(serif.className, 'text-[1.7cqw] italic text-[#4a5568]')}>This certifies that</p>
       <p className={cn(serif.className, 'mt-[0.4cqw] text-[4.6cqw] font-semibold leading-tight')}>{startupName || 'Unnamed startup'}</p>
-      {founderName ? <p className="mt-[0.2cqw] text-[1.25cqw] text-[#4a5568]">represented by {founderName}</p> : null}
+      <p className="mt-[0.2cqw] font-mono text-[0.95cqw] uppercase tracking-[0.3em] text-[#a8854a]">Company certificate</p>
       <p className="mx-auto mt-[1.1cqw] max-w-[62%] text-[1.35cqw] leading-relaxed">
         has completed the iSTARTUP investment-readiness assessment and achieved a score of{' '}
         <strong className="font-semibold">
@@ -267,20 +269,35 @@ export function ScoreCertificate({
 
 /* ───────────────────────────── 411 Certificate ───────────────────────────── */
 
-/** Earned by completing a gap-closing course; valid for six months. */
+/** "19 October 2026 at 21:22 UTC": the exact moment, in one zone, wherever it is rendered. */
+const fmtMoment = (ms: number) => {
+  const d = new Date(ms);
+  const day = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' });
+  return `${day} at ${time} UTC`;
+};
+
+/**
+ * Earned by one founder completing the company's gap-closing course; valid for six months.
+ * The company is the main label and the founder the minor one; their grade and the exact
+ * moment they completed are printed on it (each co-founder has their own).
+ */
 export function CourseCertificate({
-  learnerName,
+  companyName,
+  founderName,
   courseTitle,
-  startupName,
   modules,
+  grade,
   code,
   issuedAt,
   revokedAt,
 }: {
-  learnerName: string;
+  companyName: string;
+  founderName: string;
   courseTitle: string;
-  startupName: string;
   modules: string[];
+  /** The founder's course grade when the certificate was issued; null for courses without quizzes. */
+  grade: { percent: number; letter: string } | null;
   code: string;
   issuedAt: number;
   revokedAt?: number | null;
@@ -299,8 +316,17 @@ export function CourseCertificate({
       status={revokedAt ? 'revoked' : expired ? 'expired' : 'valid'}
       seal={
         <Seal id={code} caption="411 CERTIFICATE · ISTARTUP">
-          <span className={cn(serif.className, 'text-[3.4cqw] font-bold leading-none')}>411</span>
-          <span className="mt-[0.3cqw] font-mono text-[0.7cqw] tracking-[0.25em] text-[#d9c08f]">CERTIFIED</span>
+          {grade ? (
+            <>
+              <span className={cn(serif.className, 'text-[3.4cqw] font-bold leading-none')}>{grade.letter}</span>
+              <span className="mt-[0.3cqw] font-mono text-[0.75cqw] tracking-[0.2em] text-[#d9c08f]">{grade.percent}%</span>
+            </>
+          ) : (
+            <>
+              <span className={cn(serif.className, 'text-[3.4cqw] font-bold leading-none')}>411</span>
+              <span className="mt-[0.3cqw] font-mono text-[0.7cqw] tracking-[0.25em] text-[#d9c08f]">CERTIFIED</span>
+            </>
+          )}
         </Seal>
       }
       notice={
@@ -318,13 +344,29 @@ export function CourseCertificate({
       }
     >
       <p className={cn(serif.className, 'text-[1.7cqw] italic text-[#4a5568]')}>This certifies that</p>
-      <p className={cn(serif.className, 'mt-[0.4cqw] text-[4.6cqw] font-semibold leading-tight')}>{learnerName}</p>
-      <p className="mt-[0.9cqw] text-[1.35cqw]">has successfully completed</p>
-      <p className={cn(serif.className, 'mt-[0.4cqw] max-w-[70%] text-[2.4cqw] font-semibold italic leading-tight')}>{courseTitle}</p>
-      <p className="mx-auto mt-[1cqw] max-w-[60%] text-[1.2cqw] leading-relaxed text-[#4a5568]">
-        a gap-closing programme built from the iSTARTUP readiness assessment of {startupName || 'their startup'}
-        {covering ? `, covering ${covering}` : ''}.
+      <p className={cn(serif.className, 'mt-[0.3cqw] text-[4.6cqw] font-semibold leading-tight')}>{companyName || 'Unnamed startup'}</p>
+      <p className="mt-[0.3cqw] text-[1.3cqw] tracking-[0.04em] text-[#4a5568]">
+        through its founder <span className="font-semibold text-[#0b1730]">{founderName}</span>
       </p>
+      <p className="mt-[0.8cqw] text-[1.3cqw]">has successfully completed</p>
+      <p className={cn(serif.className, 'mt-[0.3cqw] max-w-[70%] text-[2.2cqw] font-semibold italic leading-tight')}>{courseTitle}</p>
+      <p className="mx-auto mt-[0.6cqw] max-w-[62%] text-[1.1cqw] leading-relaxed text-[#4a5568]">
+        a gap-closing programme built from the company&apos;s iSTARTUP readiness assessment{covering ? `, covering ${covering}` : ''}.
+      </p>
+      <div className="mt-[1cqw] flex divide-x divide-[#a8854a]/40 border-y border-[#a8854a]/40 py-[0.6cqw]">
+        {grade ? (
+          <div className="px-[2cqw] text-center">
+            <p className={cn(serif.className, 'text-[1.9cqw] font-semibold leading-none')}>
+              {grade.percent}% · {grade.letter}
+            </p>
+            <p className="mt-[0.35cqw] font-mono text-[0.75cqw] uppercase tracking-[0.18em] text-[#4a5568]">Course grade</p>
+          </div>
+        ) : null}
+        <div className="px-[2cqw] text-center">
+          <p className={cn(serif.className, 'text-[1.6cqw] font-semibold leading-none')}>{fmtMoment(issuedAt)}</p>
+          <p className="mt-[0.45cqw] font-mono text-[0.75cqw] uppercase tracking-[0.18em] text-[#4a5568]">Completed</p>
+        </div>
+      </div>
     </Sheet>
   );
 }

@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
 import { currentUser, getUser, toPublicUser } from '@/lib/account';
+import { ensureCompany, setCofounders } from '@/lib/company';
 import { col, isDatabaseConfigured } from '@/lib/db';
+import { validateCofounders } from '@/modules/istartup-score/onboarding/cofounders';
 import { courseAccess, paymentsMode, prices, reportAccess } from '@/lib/payments';
 import { OnboardingSchema } from '@/modules/istartup-score/onboarding/fields';
 
@@ -41,8 +43,15 @@ export async function PATCH(request: Request) {
   const parsed = PatchSchema.safeParse(body);
   if (!parsed.success) return Response.json({ error: 'Invalid onboarding answers.' }, { status: 400 });
 
+  const team = validateCofounders(parsed.data.onboarding.founders, parsed.data.onboarding.cofounders, user.email);
+  if (!team.ok) return Response.json({ error: team.error }, { status: 400 });
+  const { cofounders: _list, ...onboarding } = parsed.data.onboarding;
+
   try {
-    await col('users').doc(user.id).update({ onboarding: parsed.data.onboarding });
+    await col('users').doc(user.id).update({ onboarding });
+    const company = await ensureCompany(user.id);
+    // Only the lead manages the team; a co-founder's own answers never rewrite it.
+    if (company.lead_user_id === user.id) await setCofounders(company.id, team.cofounders, onboarding.startupName);
     const updated = await getUser(user.id);
     if (!updated) return Response.json({ error: 'Sign in first.' }, { status: 401 });
     return Response.json({ user: toPublicUser(updated) });

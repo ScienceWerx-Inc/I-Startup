@@ -11,6 +11,8 @@ import type { ClientQuestion } from '@/features/assessment/server';
 import type { QuizFeedback, QuizState } from '@/lib/gap-course/quiz-run';
 import { cn } from '@/lib/utils';
 
+import { Answers } from './review-panel';
+
 /**
  * A module's graded quiz. The server owns the questions' order, grading, attempts and the
  * answer keys (which never reach this component); here the founder answers, submits, and
@@ -331,7 +333,16 @@ function QuizReview({
                 {f.stem}
               </span>
             </p>
-            {f.answered.length ? <p className="mt-1 pl-6 text-xs text-mut">You answered: {f.answered.join(', ')}</p> : null}
+            {f.answered.length ? (
+              <div className="mt-1 pl-6 text-xs text-mut">
+                <Answers label="You answered" items={f.answered} />
+              </div>
+            ) : null}
+            {!f.correct && f.correctAnswer?.length ? (
+              <div className="mt-1 pl-6 text-xs font-medium text-good">
+                <Answers label={f.correctAnswer.length > 1 ? 'Right answers' : 'Right answer'} items={f.correctAnswer} />
+              </div>
+            ) : null}
             {f.explanation ? <p className="mt-1.5 pl-6 text-sm leading-relaxed text-ink">{f.explanation}</p> : null}
           </li>
         ))}

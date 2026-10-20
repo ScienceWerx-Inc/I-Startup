@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   BarChart3,
   Check,
+  CircleDollarSign,
   Circle,
   CreditCard,
   Database,
@@ -188,6 +189,7 @@ interface CourseCard {
   updatedAt: string;
   /** The admin who generated it from the console; null when the founder's own builder did. */
   createdBy: string | null;
+  team?: { company: string | null; founders: number; joined: number; avgGrade: number | null; graded: number };
   courseScore?: CourseScore | null;
   quizScore?: QuizScore | null;
   user_email?: string | null;
@@ -222,8 +224,29 @@ interface CourseLesson {
   } | null;
 }
 
+interface TeamMemberRow {
+  userId: string | null;
+  name: string;
+  email: string;
+  phone: string | null;
+  role: 'lead' | 'cofounder';
+  joined: boolean;
+  invited: boolean;
+  progress?: number;
+  grade?: { percent: number; letter: string } | null;
+  quizzesPassed?: number;
+  quizzes?: number;
+  certificateCode?: string | null;
+  completedAt?: number | null;
+}
+
 interface CourseDetail {
   founder: { id: string; email: string; full_name: string } | null;
+  companyName: string;
+  selectedUserId: string;
+  team: TeamMemberRow[];
+  mostMissed: Array<{ stem: string; quiz: string; by: string[] }>;
+  grade: { percent: number; letter: string } | null;
   course: {
     courseId: string;
     reportId: string;
@@ -275,6 +298,7 @@ const TABS = [
   { key: 'reports', label: 'Reports', icon: ListOrdered },
   { key: 'courses', label: 'Library', icon: GraduationCap },
   { key: 'payments', label: 'Payments', icon: CreditCard },
+  { key: 'costs', label: 'AI costs', icon: CircleDollarSign },
   { key: 'system', label: 'System', icon: Settings2 },
 ] as const;
 
@@ -352,6 +376,7 @@ export function AdminDashboard() {
       {tab === 'reports' ? id ? <ReportDetailView id={id} /> : <ReportsTab /> : null}
       {tab === 'courses' ? id ? <CourseDetailView id={id} /> : <CoursesTab /> : null}
       {tab === 'payments' ? <PaymentsTab /> : null}
+      {tab === 'costs' ? <CostsTab /> : null}
       {tab === 'system' ? <SystemTab /> : null}
     </div>
   );
@@ -613,6 +638,20 @@ function FounderDetail({ id }: { id: string }) {
     reports: ReportSummary[];
     purchases: Purchase[];
     courses: CourseCard[];
+    company: {
+      id: string;
+      name: string;
+      members: Array<{
+        name: string;
+        email: string;
+        phone: string | null;
+        role: 'lead' | 'cofounder';
+        userId: string | null;
+        joined: boolean;
+        invited: boolean;
+        grades: Array<{ courseId: string; percent: number | null; letter: string | null; completedAt: number | null }>;
+      }>;
+    } | null;
   }>(`/api/admin/users/${id}`);
 
   const back = (
@@ -648,6 +687,48 @@ function FounderDetail({ id }: { id: string }) {
           />
         </div>
       </Panel>
+
+      {data.company ? (
+        <Panel>
+          <h3 className="text-lg font-semibold text-ink">Company · {data.company.name}</h3>
+          <ul className="mt-3 divide-y divide-line">
+            {data.company.members.map((m) => (
+              <li key={m.email} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+                <div className="min-w-0">
+                  {m.userId && m.userId !== user.id ? (
+                    <button type="button" className="text-left text-sm font-medium text-brand hover:underline" onClick={() => go(`founders/${m.userId}`)}>
+                      {m.name}
+                    </button>
+                  ) : (
+                    <span className="text-sm font-medium text-ink">{m.name}</span>
+                  )}
+                  <span className="ml-2 text-[11px] text-mut">{m.role === 'lead' ? 'Lead founder' : 'Co-founder'}</span>
+                  <p className="text-xs text-mut">
+                    {m.email}
+                    {m.phone ? ` · ${m.phone}` : ''}
+                  </p>
+                </div>
+                <div className="shrink-0 text-right text-xs">
+                  {m.joined ? (
+                    m.grades.length ? (
+                      m.grades.map((g) => (
+                        <p key={g.courseId} className="font-mono text-ink">
+                          {g.percent}% · {g.letter}
+                          {g.completedAt ? <span className="text-mut"> · completed {date(msDate(g.completedAt))}</span> : null}
+                        </p>
+                      ))
+                    ) : (
+                      <span className="text-mut">Joined · no grade yet</span>
+                    )
+                  ) : (
+                    <Badge>{m.invited ? 'Invited' : 'Not invited'}</Badge>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      ) : null}
 
       <Panel>
         <h3 className="text-lg font-semibold text-ink">Onboarding answers</h3>
@@ -978,7 +1059,6 @@ function ReportDetailView({ id }: { id: string }) {
               <ScoreCertificate
                 reportId={report.id}
                 startupName={report.startup_name}
-                founderName={review?.founder ? review.founder.full_name || review.founder.email : null}
                 score={report.final_score}
                 maxScore={500}
                 band={bandFor(report.final_score).label}
@@ -1139,7 +1219,13 @@ function CoursesTab() {
                         >
                           {c.user_name || c.user_email || '—'}
                         </button>
-                        <span className="block text-xs text-mut">{c.startup || ''}</span>
+                        <span className="block text-xs text-mut">{c.team?.company || c.startup || ''}</span>
+                        {c.team && c.team.founders > 1 ? (
+                          <span className="block text-[11px] text-mut">
+                            Team of {c.team.founders} · {c.team.joined} joined
+                            {c.team.avgGrade != null ? ` · avg grade ${c.team.avgGrade}%` : ''}
+                          </span>
+                        ) : null}
                       </td>
                       <td className={cn(td, 'text-right font-mono tabular')}>{c.score}</td>
                       <td className={td}>
@@ -1343,7 +1429,11 @@ function NewCoursePanel({ courses, onClose, onChanged }: { courses: CourseCard[]
 }
 
 function CourseDetailView({ id }: { id: string }) {
-  const { data, error, loading, reload } = useAdminData<CourseDetail>(`/api/admin/courses/${encodeURIComponent(id)}`);
+  // Whose course to show: on a team course every founder has their own answers and grade.
+  const [viewer, setViewer] = useState<string | null>(null);
+  const { data, error, loading, reload } = useAdminData<CourseDetail>(
+    `/api/admin/courses/${encodeURIComponent(id)}${viewer ? `?userId=${encodeURIComponent(viewer)}` : ''}`,
+  );
   // The full course reads open; an admin collapses what they've finished reviewing.
   const [closed, setClosed] = useState<Set<string>>(new Set());
 
@@ -1355,7 +1445,7 @@ function CourseDetailView({ id }: { id: string }) {
   if (error) return <div className="space-y-4">{back}<ErrorNote error={error} /></div>;
   if (!data) return <div className="space-y-4">{back}<p className="text-sm text-mut">{loading ? 'Loading…' : '—'}</p></div>;
 
-  const { founder, course, plan, score, enrollment, progress, certificate, modules } = data;
+  const { founder, course, plan, score, enrollment, progress, certificate, modules, team, mostMissed } = data;
   const lessons = modules.flatMap((m) => m.lessons);
   const lessonNumber = new Map(lessons.map((l, i) => [l.id, i + 1]));
   const allClosed = lessons.length > 0 && lessons.every((l) => closed.has(l.id));
@@ -1472,17 +1562,103 @@ function CourseDetailView({ id }: { id: string }) {
       </Panel>
 
       <Panel>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="text-lg font-semibold text-ink">Team · {data.companyName}</h3>
+          <span className="text-xs text-mut">Each founder takes the course on their own account. Select one to see their answers.</span>
+        </div>
+        <TableFrame>
+          <table className="w-full min-w-[820px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-line">
+                <th className={th}>Founder</th>
+                <th className={th}>Contact</th>
+                <th className={cn(th, 'text-right')}>Progress</th>
+                <th className={cn(th, 'text-right')}>Grade</th>
+                <th className={th}>Quizzes</th>
+                <th className={th}>Certificate</th>
+                <th className={cn(th, 'pr-0 text-right')}>Completed</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {team.map((m) => {
+                const current = m.userId === data.selectedUserId;
+                return (
+                  <tr key={m.email} className={cn(current && 'bg-tech-soft/60')}>
+                    <td className={td}>
+                      {m.userId ? (
+                        <button type="button" onClick={() => setViewer(m.userId)} className="text-left font-medium text-brand hover:underline">
+                          {m.name}
+                        </button>
+                      ) : (
+                        <span className="font-medium text-ink">{m.name}</span>
+                      )}
+                      <span className="block text-[11px] text-mut">
+                        {m.role === 'lead' ? 'Lead founder' : 'Co-founder'}
+                        {current ? ' · showing' : ''}
+                      </span>
+                    </td>
+                    <td className={cn(td, 'text-xs text-mut')}>
+                      {m.email}
+                      {m.phone ? <span className="block">{m.phone}</span> : null}
+                    </td>
+                    {m.joined ? (
+                      <>
+                        <td className={cn(td, 'text-right font-mono tabular')}>{m.progress ?? 0}%</td>
+                        <td className={cn(td, 'text-right font-mono font-semibold tabular')}>
+                          {m.grade ? `${m.grade.percent}% · ${m.grade.letter}` : '—'}
+                        </td>
+                        <td className={cn(td, 'text-mut')}>
+                          {m.quizzesPassed ?? 0} of {m.quizzes ?? 0} passed
+                        </td>
+                        <td className={cn(td, 'font-mono text-xs text-ink')}>{m.certificateCode ?? '—'}</td>
+                        <td className={cn(td, 'pr-0 text-right font-mono text-xs text-mut')}>{m.completedAt ? dateTime(msDate(m.completedAt)) : '—'}</td>
+                      </>
+                    ) : (
+                      <td colSpan={5} className={cn(td, 'pr-0 text-mut')}>
+                        <Badge tone="neutral">{m.invited ? 'Invited, not joined yet' : 'Not invited yet'}</Badge>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </TableFrame>
+      </Panel>
+
+      {mostMissed.length ? (
+        <Panel>
+          <h3 className="text-lg font-semibold text-ink">Most missed questions</h3>
+          <p className="mt-0.5 text-sm text-mut">Wrong in each founder&apos;s latest graded quiz attempt, most missed first.</p>
+          <ul className="mt-4 divide-y divide-line">
+            {mostMissed.map((q, i) => (
+              <li key={i} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-ink">{q.stem}</p>
+                  <p className="mt-0.5 text-xs text-mut">{q.quiz}</p>
+                </div>
+                <p className="shrink-0 text-xs text-risk sm:text-right">
+                  Missed by {q.by.length}: {q.by.join(', ')}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      ) : null}
+
+      <Panel>
         <h3 className="text-lg font-semibold text-ink">{CERTIFICATE_NAME}</h3>
         {certificate ? (
           <>
-            <p className="mt-0.5 text-sm text-mut">The certificate exactly as the founder holds it.</p>
+            <p className="mt-0.5 text-sm text-mut">{founder?.full_name || 'This founder'}&apos;s certificate, exactly as they hold it.</p>
             <div className="mt-4">
               <CertificateScroller>
                 <CourseCertificate
-                  learnerName={certificate.learnerName}
+                  companyName={data.companyName}
+                  founderName={certificate.learnerName}
                   courseTitle={certificate.courseTitle}
-                  startupName={plan.startup.name}
                   modules={plan.modules.map((m) => m.title)}
+                  grade={data.grade}
                   code={certificate.code}
                   issuedAt={certificate.issuedAt}
                   revokedAt={certificate.revokedAt}
@@ -1812,6 +1988,130 @@ function PurchasesTable({ rows, showFounder }: { rows: Purchase[]; showFounder: 
 }
 
 /* ─────────────────────────────── System ─────────────────────────────── */
+
+interface CostReport {
+  prices: { model: string; inputPerM: number; outputPerM: number };
+  since: string | null;
+  totalUsd: number;
+  savedUsd: number;
+  calls: number;
+  hits: number;
+  courses: number;
+  avgCourseUsd: number;
+  features: Array<{
+    key: string;
+    label: string;
+    note: string;
+    calls: number;
+    hits: number;
+    hitRate: number;
+    totalUsd: number;
+    avgUsd: number;
+    avgInputTokens: number;
+    avgOutputTokens: number;
+    avgThoughtsTokens: number;
+    avgSeconds: number;
+    savedUsd: number;
+  }>;
+  daily: Array<{ day: string; count: number }>;
+}
+
+/** Dollars to the precision a per-call cost needs (they are fractions of a cent). */
+const usd = (n: number) => (n === 0 ? '$0' : n < 0.01 ? `$${n.toFixed(5)}` : n < 1 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}`);
+
+/** What the AI features cost: per feature, per course, and what the generation cache saved. */
+function CostsTab() {
+  const { data, error, loading, reload } = useAdminData<CostReport>('/api/admin/ai-costs');
+  return (
+    <div className="space-y-5">
+      <Panel>
+        <PanelHead
+          icon={CircleDollarSign}
+          title="AI costs"
+          sub={
+            data
+              ? `Every model call, priced at ${data.prices.model}: $${data.prices.inputPerM} per 1M input tokens, $${data.prices.outputPerM} per 1M output and thinking tokens.`
+              : undefined
+          }
+          action={<ReloadButton onClick={reload} loading={loading} />}
+        />
+        <ErrorNote error={error} />
+        {data ? (
+          <>
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Tile label="Total spend" value={usd(data.totalUsd)} sub={`${data.calls} model calls`} />
+              <Tile label="Avg per course" value={usd(data.avgCourseUsd)} sub={`Over ${plural(data.courses, 'course')} generated`} />
+              <Tile label="Saved by the cache" value={usd(data.savedUsd)} sub={`${data.hits} calls served from it`} />
+              <Tile
+                label="Cache hit rate"
+                value={data.calls + data.hits ? `${Math.round((data.hits / (data.calls + data.hits)) * 100)}%` : '—'}
+                sub="Of all generation requests"
+              />
+            </div>
+            <p className="mt-3 text-xs text-mut">
+              {data.since
+                ? `Metered since ${dateTime(data.since)}. Calls made before metering started are not included.`
+                : 'No calls metered yet. Metering starts with this release; earlier calls were not recorded.'}
+            </p>
+          </>
+        ) : null}
+      </Panel>
+
+      {data ? (
+        <Panel>
+          <h3 className="text-lg font-semibold text-ink">By feature</h3>
+          <TableFrame>
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-line">
+                  <th className={th}>Feature</th>
+                  <th className={cn(th, 'text-right')}>Avg cost / call</th>
+                  <th className={cn(th, 'text-right')}>Calls</th>
+                  <th className={cn(th, 'text-right')}>Total</th>
+                  <th className={cn(th, 'text-right')}>Avg tokens in / out / thinking</th>
+                  <th className={cn(th, 'text-right')}>Avg time</th>
+                  <th className={cn(th, 'pr-0 text-right')}>Cache hits · saved</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {data.features.map((f) => (
+                  <tr key={f.key}>
+                    <td className={td}>
+                      <span className="font-medium text-ink">{f.label}</span>
+                      <span className="block text-xs text-mut">{f.note}</span>
+                    </td>
+                    <td className={cn(td, 'text-right font-mono font-semibold tabular text-ink')}>{f.calls ? usd(f.avgUsd) : '—'}</td>
+                    <td className={cn(td, 'text-right font-mono tabular')}>{f.calls}</td>
+                    <td className={cn(td, 'text-right font-mono tabular')}>{usd(f.totalUsd)}</td>
+                    <td className={cn(td, 'text-right font-mono text-xs tabular text-mut')}>
+                      {f.calls ? `${f.avgInputTokens.toLocaleString()} / ${f.avgOutputTokens.toLocaleString()} / ${f.avgThoughtsTokens.toLocaleString()}` : '—'}
+                    </td>
+                    <td className={cn(td, 'text-right font-mono text-xs tabular text-mut')}>{f.calls ? `${f.avgSeconds}s` : '—'}</td>
+                    <td className={cn(td, 'pr-0 text-right font-mono text-xs tabular text-mut')}>
+                      {f.hits} ({f.hitRate}%) · {usd(f.savedUsd)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableFrame>
+        </Panel>
+      ) : null}
+
+      {data?.daily.length ? (
+        <Panel>
+          <h3 className="text-lg font-semibold text-ink">Spend per day</h3>
+          <p className="mt-0.5 text-xs text-mut">Last 30 days, real model calls only.</p>
+          <Bars
+            rows={[...data.daily].sort((a, b) => (a.day < b.day ? 1 : -1)).map((d) => ({ label: d.day, count: d.count }))}
+            format={(n) => usd(n / 1_000_000)}
+            labelWidth={110}
+          />
+        </Panel>
+      ) : null}
+    </div>
+  );
+}
 
 function SystemTab() {
   const overview = useAdminData<Overview>('/api/admin/overview');

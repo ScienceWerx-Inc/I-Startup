@@ -19,6 +19,7 @@ import {
   type OnboardingField,
 } from '../onboarding/fields';
 import { canonicalCountry, fold, matchCountries } from '../onboarding/countries';
+import { MAX_COFOUNDERS, cofoundersNeeded, parseCofounders, validateCofounders } from '../onboarding/cofounders';
 
 /**
  * "Submit an idea" — the only way in. A few screens of quick questions (sliding between
@@ -223,6 +224,8 @@ export default function OnboardingPage() {
                             <FieldInput
                               field={field}
                               value={answers[field.key] ?? ''}
+                              founders={answers.founders}
+                              leadEmail={user?.email}
                               autoFocus={i === 0}
                               onChange={(v) => setAnswers((a) => ({ ...a, [field.key]: v }))}
                             />
@@ -290,11 +293,16 @@ function FieldInput({
   value,
   onChange,
   autoFocus,
+  founders,
+  leadEmail,
 }: {
   field: OnboardingField;
   value: string;
   onChange: (v: string) => void;
   autoFocus?: boolean;
+  /** The "How many founders?" answer, which decides how many co-founder rows to ask for. */
+  founders?: string;
+  leadEmail?: string;
 }) {
   const label = (
     <span className="mb-2 flex items-center gap-1.5 text-[15px] font-medium text-ink">
@@ -316,6 +324,10 @@ function FieldInput({
         </div>
       </div>
     );
+  }
+
+  if (field.kind === 'cofounders') {
+    return <CofoundersInput label={label} value={value} onChange={onChange} founders={founders} leadEmail={leadEmail} />;
   }
 
   if (field.kind === 'country') {
@@ -346,6 +358,62 @@ function FieldInput({
         />
       )}
     </label>
+  );
+}
+
+/**
+ * One row per co-founder (name, email, phone), as many as "How many founders?" calls for
+ * ("4+" starts at three and can add more). Hidden for a solo founder. Each co-founder later
+ * gets their own invite link, course, grade and certificate.
+ */
+function CofoundersInput({
+  label,
+  value,
+  onChange,
+  founders,
+  leadEmail,
+}: {
+  label: ReactNode;
+  value: string;
+  onChange: (v: string) => void;
+  founders?: string;
+  leadEmail?: string;
+}) {
+  const needed = cofoundersNeeded(founders);
+  const stored = parseCofounders(value);
+  const count = Math.min(MAX_COFOUNDERS, Math.max(needed, founders === '4+' ? stored.length : needed));
+  const rows = Array.from({ length: count }, (_, i) => stored[i] ?? {});
+  const check = validateCofounders(founders, value, leadEmail);
+  const touched = stored.some((r) => r && (r.name || r.email || r.phone));
+  if (needed === 0) return null;
+
+  const set = (i: number, key: 'name' | 'email' | 'phone', v: string) => {
+    const next = rows.map((r, j) => (j === i ? { ...r, [key]: v } : r));
+    onChange(JSON.stringify(next));
+  };
+
+  return (
+    <div>
+      {label}
+      <p className="-mt-1 mb-3 text-xs text-mut">
+        Each co-founder gets their own invite link, takes the course and earns their own certificate.
+      </p>
+      <div className="space-y-3">
+        {rows.map((r, i) => (
+          <div key={i} className="grid gap-2 rounded-lg border border-line bg-surface p-3 sm:grid-cols-3">
+            <input className={inputClass} placeholder={`Co-founder ${i + 1} name`} value={r.name ?? ''} onChange={(e) => set(i, 'name', e.target.value)} maxLength={120} autoComplete="off" />
+            <input className={inputClass} type="email" placeholder="Email" value={r.email ?? ''} onChange={(e) => set(i, 'email', e.target.value)} maxLength={254} autoComplete="off" />
+            <input className={inputClass} type="tel" placeholder="Phone" value={r.phone ?? ''} onChange={(e) => set(i, 'phone', e.target.value)} maxLength={40} autoComplete="off" />
+          </div>
+        ))}
+      </div>
+      {founders === '4+' && count < MAX_COFOUNDERS ? (
+        <button type="button" className="mt-2 text-sm font-medium text-brand hover:underline" onClick={() => onChange(JSON.stringify([...rows, {}]))}>
+          + Add another co-founder
+        </button>
+      ) : null}
+      {touched && !check.ok ? <p className="mt-2 text-xs text-risk">{check.error}</p> : null}
+    </div>
   );
 }
 

@@ -1,8 +1,11 @@
 import { assessment, assessmentRepos } from '@/brico/assessment';
 import { lms } from '@/brico/lms';
-import { attemptIndexId, type Attempt, type Question, type Response } from '@/features/assessment/domain';
+import { lessonContentId, lmsRepos } from '@/brico/lms';
+import { attemptId as attemptIdFor, attemptIndexId, questionKeyId, type AnswerKey, type Attempt, type Question, type Response } from '@/features/assessment/domain';
 import type { ClientQuestion } from '@/features/assessment/server';
 
+import { listCheckpointAnswers } from './checkpoints';
+import { upsertCourseGrade } from './grades';
 import { getCourseView } from './view';
 
 /**
@@ -28,6 +31,8 @@ export interface QuizFeedback {
   correct: boolean;
   /** Labels of what they picked, so the review reads without the question in front of them. */
   answered: string[];
+  /** The right answer's labels — only once the quiz is passed or out of attempts. */
+  correctAnswer?: string[];
   explanation?: string;
 }
 
@@ -79,17 +84,39 @@ function labelsOf(question: Question | undefined, response: Response | undefined
   return ids.map((id) => options.find((o) => o.id === id)?.label ?? id);
 }
 
-async function feedbackFor(attempt: Attempt): Promise<QuizFeedback[]> {
-  const questions = await assessmentRepos().questions.getMany(attempt.graded.map((g) => g.questionId));
+function keyLabels(question: Question | undefined, key: AnswerKey | undefined): string[] {
+  if (!question || !key) return [];
+  if (key.kind === 'true_false') return [key.correct ? 'True' : 'False'];
+  const options = question.payload.kind === 'mcq_single' || question.payload.kind === 'mcq_multi' ? question.payload.options : [];
+  const ids = key.kind === 'mcq_single' ? [key.correctOptionId] : key.kind === 'mcq_multi' ? key.correctOptionIds : [];
+  return ids.map((id) => options.find((o) => o.id === id)?.label ?? id);
+}
+
+/**
+ * Per-question results of a graded attempt. `reveal` adds the right answers: the server
+ * sets it only once the quiz is passed or out of attempts, so a retry is never a lookup.
+ */
+async function feedbackFor(attempt: Attempt, reveal = false): Promise<QuizFeedback[]> {
+  const ids = attempt.graded.map((g) => g.questionId);
+  const [questions, keys] = await Promise.all([
+    assessmentRepos().questions.getMany(ids),
+    reveal ? assessmentRepos().questionKeys.getMany(ids.map(questionKeyId)) : Promise.resolve([]),
+  ]);
   const byId = new Map(questions.map((q) => [q.id, q]));
+  const keyOf = new Map(keys.map((k) => [k.questionId, k.key]));
   return attempt.graded.map((g) => ({
     questionId: g.questionId,
     stem: byId.get(g.questionId)?.stem ?? '',
     correct: g.correct,
     answered: labelsOf(byId.get(g.questionId), attempt.responses[g.questionId]),
+    ...(reveal ? { correctAnswer: keyLabels(byId.get(g.questionId), keyOf.get(g.questionId)) } : {}),
     ...(g.explanation ? { explanation: g.explanation } : {}),
   }));
 }
+
+/** Whether a quiz's answers may be shown: passed, or every attempt used. */
+const mayReveal = (index: { passed: boolean; attemptCount: number } | null, maxAttempts: number) =>
+  Boolean(index && (index.passed || (maxAttempts > 0 && index.attemptCount >= maxAttempts)));
 
 export async function quizState(userId: string, courseId: string, lessonId: string): Promise<QuizState> {
   const { quiz } = await quizFor(userId, courseId, lessonId);
@@ -106,7 +133,10 @@ export async function quizState(userId: string, courseId: string, lessonId: stri
     bestPercent: index?.bestPercent ?? 0,
     passed: index?.passed ?? false,
     inProgress: last?.status === 'in_progress' ? { attemptId: last.id, questions: await servedQuestions(last) } : null,
-    last: last && last.status === 'graded' ? { percent: last.percent, passed: last.passed, feedback: await feedbackFor(last) } : null,
+    last:
+      last && last.status === 'graded'
+        ? { percent: last.percent, passed: last.passed, feedback: await feedbackFor(last, mayReveal(index, quiz.policy.maxAttempts)) }
+        : null,
   };
 }
 
@@ -127,7 +157,7 @@ export async function submitQuiz(input: {
   attemptId: string;
   responses: Record<string, Response>;
 }) {
-  const { quiz } = await quizFor(input.userId, input.courseId, input.lessonId);
+  const { quiz, view } = await quizFor(input.userId, input.courseId, input.lessonId);
   const attempt = await assessmentRepos().attempts.get(input.attemptId);
   if (!attempt || attempt.userId !== input.userId || attempt.assessmentId !== quiz.id) {
     throw new QuizError('That attempt is not yours.', 403);
@@ -149,10 +179,89 @@ export async function submitQuiz(input: {
     });
     courseComplete = 'completion' in recorded && recorded.completion.complete;
   }
+  // The founder's course grade moves with every attempt, and freezes when the course completes.
+  const grade = await upsertCourseGrade(view.job, input.userId, input.learnerName);
+  const index = await assessmentRepos().attemptIndex.get(attemptIndexId(quiz.id, input.userId));
   return {
     percent: result.attempt.percent,
     passed: result.attempt.passed,
     courseComplete,
-    feedback: await feedbackFor(result.attempt),
+    grade: { percent: grade.percent, letter: grade.letter },
+    feedback: await feedbackFor(result.attempt, mayReveal(index, quiz.policy.maxAttempts)),
   };
+}
+
+/* ───────────────────────────── questions to review ───────────────────────────── */
+
+export interface ReviewItem {
+  lessonId: string;
+  lessonTitle: string;
+  stem: string;
+  answered: string[];
+  correctAnswer?: string[];
+  explanation?: string;
+}
+
+export interface CourseReview {
+  quizzes: Array<{
+    lessonId: string;
+    title: string;
+    percent: number;
+    passed: boolean;
+    revealed: boolean;
+    missed: ReviewItem[];
+  }>;
+  /** Lesson self-checks they got wrong on their first pick (those answers were never secret). */
+  checkpoints: ReviewItem[];
+}
+
+/** Everything the founder got wrong in a course: each quiz's latest graded attempt, and self-checks. */
+export async function courseReview(userId: string, courseId: string): Promise<CourseReview> {
+  const view = await getCourseView(userId, courseId);
+  if (!view?.curriculum) throw new QuizError('Course not found.', 404);
+  const lessons = view.curriculum.sections.flatMap((s) => s.lessons);
+  const repos = assessmentRepos();
+
+  const quizzes = await Promise.all(
+    lessons
+      .filter((l) => l.assessmentId)
+      .map(async (l) => {
+        const [quiz, index] = await Promise.all([
+          repos.assessments.get(l.assessmentId!),
+          repos.attemptIndex.get(attemptIndexId(l.assessmentId!, userId)),
+        ]);
+        if (!quiz || !index?.attemptCount) return null;
+        // The latest attempt that was graded (the newest may still be open).
+        const attempts = await repos.attempts.getMany(
+          Array.from({ length: Math.min(index.attemptCount, 10) }, (_, i) => attemptIdFor(quiz.id, userId, i + 1)),
+        );
+        const last = attempts.filter((a) => a.status === 'graded').sort((a, b) => b.attemptNo - a.attemptNo)[0];
+        if (!last) return null;
+        const revealed = mayReveal(index, quiz.policy.maxAttempts);
+        const missed = (await feedbackFor(last, revealed))
+          .filter((f) => !f.correct)
+          .map(({ questionId: _q, correct: _c, ...f }) => ({ lessonId: l.id, lessonTitle: l.title, ...f }));
+        return { lessonId: l.id, title: l.title, percent: last.percent, passed: index.passed, revealed, missed };
+      }),
+  );
+
+  const wrong = (await listCheckpointAnswers({ courseId })).filter((a) => a.user_id === userId && !a.correct);
+  const contents = await Promise.all(wrong.map((a) => lmsRepos().lessonContent.get(lessonContentId(a.lesson_id))));
+  const checkpoints = wrong.flatMap((a, i): ReviewItem[] => {
+    const cp = contents[i]?.checkpoint;
+    if (!cp) return [];
+    const label = (id: string) => cp.options.find((o) => o.id === id)?.label ?? id;
+    return [
+      {
+        lessonId: a.lesson_id,
+        lessonTitle: lessons.find((l) => l.id === a.lesson_id)?.title ?? '',
+        stem: cp.stem,
+        answered: [label(a.option_id)],
+        correctAnswer: cp.correctOptionIds.map(label),
+        explanation: cp.explanation,
+      },
+    ];
+  });
+
+  return { quizzes: quizzes.filter((q): q is NonNullable<typeof q> => q !== null), checkpoints };
 }

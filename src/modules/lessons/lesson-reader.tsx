@@ -31,7 +31,7 @@ interface Props {
   finishTargetId?: string;
   children: ReactNode;
   /** Saves the founder's first checkpoint answer from the slides too. */
-  record?: { courseId: string; lessonId: string };
+  record?: { courseId: string; lessonId: string; learnerId?: string };
 }
 
 /** The remembered view, read from storage like an external store (no effect, no flash). */

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { PROFILE_FIELDS, type StartupProfile } from '../assessment/bank';
+import { validateCofounders } from './cofounders';
 
 /**
  * The "Submit an idea" onboarding: a few screens of quick questions asked before the
@@ -23,12 +24,15 @@ export type OnboardingKey =
   | 'teamSize'
   | 'funding'
   | 'goal'
-  | 'country';
+  | 'country'
+  | 'cofounders';
 
 export type OnboardingAnswers = Partial<Record<OnboardingKey, string>>;
 
 export type OnboardingField =
   | { key: OnboardingKey; kind: 'chips'; label: string; options: string[]; optional?: boolean }
+  /** Each co-founder's name, email and phone; shown only when there is more than one founder. */
+  | { key: OnboardingKey; kind: 'cofounders'; label: string; optional?: boolean }
   /** Free text with a type-ahead list of countries, re-sorted on every keystroke. */
   | { key: OnboardingKey; kind: 'country'; label: string; placeholder: string; optional?: boolean }
   | {
@@ -93,6 +97,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
     subtitle: 'Investors back teams first, so this frames the whole report.',
     fields: [
       { key: 'founders', kind: 'chips', label: 'How many founders?', options: ['Solo founder', '2', '3', '4+'] },
+      { key: 'cofounders', kind: 'cofounders', label: 'Your co-founders' },
       {
         key: 'role',
         kind: 'chips',
@@ -127,7 +132,11 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
 ];
 
 export function isStepComplete(step: OnboardingStep, answers: OnboardingAnswers): boolean {
-  return step.fields.every((f) => f.optional || Boolean(answers[f.key]?.trim()));
+  return step.fields.every((f) =>
+    f.kind === 'cofounders'
+      ? validateCofounders(answers.founders, answers.cofounders).ok
+      : f.optional || Boolean(answers[f.key]?.trim()),
+  );
 }
 
 /** Server-side shape: every answer optional, lengths bounded, unknown keys dropped. */
@@ -144,6 +153,8 @@ export const OnboardingSchema = z.object({
   funding: z.string().max(80).optional(),
   goal: z.string().max(80).optional(),
   country: z.string().trim().max(120).optional(),
+  /** JSON list of co-founders (see cofounders.ts); moved into the company, not stored here. */
+  cofounders: z.string().max(8000).optional(),
 });
 
 /** The assessment profile the onboarding answers pre-fill. */

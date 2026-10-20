@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { FieldValue } from 'firebase-admin/firestore';
 
+import type { TokenUsage } from '@/lib/ai-pricing';
 import { col, nowIso } from '@/lib/db';
 
 /**
@@ -24,6 +25,9 @@ import { col, nowIso } from '@/lib/db';
 export interface MemoEntry {
   kind: string;
   value: unknown;
+  /** What generating it took, so a later hit knows what it saved. */
+  usage?: TokenUsage;
+  duration_ms?: number;
   created_at: string;
   last_hit_at?: string;
   hits: number;
@@ -66,32 +70,53 @@ export const memoKey = (r: MemoRequest) =>
 
 const inFlight = new Map<string, Promise<unknown>>();
 
+/** What happened on one memoized call: a fresh generation or a hit, with its usage. */
+export interface MemoOutcome {
+  cache: 'miss' | 'hit';
+  /** The tokens the model call took (a hit: the tokens it would have taken). */
+  usage: TokenUsage | null;
+  durationMs: number;
+}
+
 /**
  * Returns the cached output for this exact request, or runs `generate` once, stores its
  * result and returns it. `parse` validates a cached value (return null to reject it).
+ * `onOutcome` hears about every call (hit or miss), for cost metering.
  */
 export async function memoize<T>(
   request: MemoRequest,
-  generate: () => Promise<T>,
+  generate: () => Promise<{ value: T; usage?: TokenUsage }>,
   parse: (value: unknown) => T | null,
   store: MemoStore = firestoreMemoStore,
+  onOutcome?: (outcome: MemoOutcome) => void,
 ): Promise<T> {
   const key = memoKey(request);
   const pending = inFlight.get(key);
   if (pending) return pending as Promise<T>;
 
   const run = (async () => {
+    const started = Date.now();
     // The cache is an optimisation: if it cannot be read or written, generate anyway.
     const cached = await store.get(key).catch(() => null);
     const valid = cached ? parse(cached.value) : null;
     if (valid !== null) {
       await store.hit(key).catch(() => {});
+      onOutcome?.({ cache: 'hit', usage: cached?.usage ?? null, durationMs: Date.now() - started });
       return valid;
     }
-    const value = await generate();
+    const { value, usage } = await generate();
+    const durationMs = Date.now() - started;
     await store
-      .set(key, { kind: request.kind, value: JSON.parse(JSON.stringify(value)), created_at: nowIso(), hits: 0 })
+      .set(key, {
+        kind: request.kind,
+        value: JSON.parse(JSON.stringify(value)),
+        ...(usage ? { usage } : {}),
+        duration_ms: durationMs,
+        created_at: nowIso(),
+        hits: 0,
+      })
       .catch((error) => console.error('AI cache write failed:', error));
+    onOutcome?.({ cache: 'miss', usage: usage ?? null, durationMs });
     return value;
   })();
 

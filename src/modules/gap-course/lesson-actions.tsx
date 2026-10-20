@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Check, CheckCircle2, Loader2, XCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import type { LessonCheckpoint } from '@/features/lms/domain';
+import { learnerOrder } from '@/lib/lessons/learner-order';
 import { cn } from '@/lib/utils';
 
 /**
@@ -17,9 +18,14 @@ export function Checkpoint({
   record,
 }: {
   checkpoint: LessonCheckpoint;
-  record?: { courseId: string; lessonId: string };
+  /** Saves the first pick; `learnerId` also gives this founder their own option order. */
+  record?: { courseId: string; lessonId: string; learnerId?: string };
 }) {
   const [picked, setPicked] = useState<string | null>(null);
+  const options = useMemo(
+    () => learnerOrder(checkpoint.options, record?.learnerId, record?.lessonId ?? ''),
+    [checkpoint.options, record?.learnerId, record?.lessonId],
+  );
   const right = picked ? checkpoint.correctOptionIds.includes(picked) : false;
 
   const pick = (optionId: string) => {
@@ -29,7 +35,7 @@ export function Checkpoint({
     fetch('/api/course/checkpoint', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...record, optionId }),
+      body: JSON.stringify({ courseId: record.courseId, lessonId: record.lessonId, optionId }),
     }).catch(() => {});
   };
 
@@ -38,7 +44,7 @@ export function Checkpoint({
       <p className="eyebrow">Check yourself</p>
       <p className="mt-2 text-[16px] font-medium leading-relaxed text-ink">{checkpoint.stem}</p>
       <ul className="mt-4 space-y-2">
-        {checkpoint.options.map((o) => {
+        {options.map((o, position) => {
           const isRight = checkpoint.correctOptionIds.includes(o.id);
           const shown = picked !== null;
           return (
@@ -55,7 +61,8 @@ export function Checkpoint({
                   shown && !isRight && picked !== o.id && 'border-line opacity-60',
                 )}
               >
-                <span className="font-mono text-xs uppercase text-mut">{o.id}</span>
+                {/* Letters by position: options are shuffled per founder, their ids are not. */}
+                <span className="font-mono text-xs uppercase text-mut">{String.fromCharCode(65 + position)}</span>
                 <span className="flex-1 text-ink">{o.label}</span>
                 {shown && isRight ? <CheckCircle2 className="h-4 w-4 shrink-0 text-good" /> : null}
                 {shown && !isRight && picked === o.id ? <XCircle className="h-4 w-4 shrink-0 text-risk" /> : null}

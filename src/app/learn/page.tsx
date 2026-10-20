@@ -5,7 +5,8 @@ import { ArrowRight, Check, GraduationCap, Loader2 } from 'lucide-react';
 
 import { buttonVariants } from '@/components/ui/button';
 import { sessionUserId } from '@/lib/account';
-import { listJobs } from '@/lib/gap-course/service';
+import { companyForUser } from '@/lib/company';
+import { listJobsForViewer } from '@/lib/gap-course/service';
 import { listCourseCards } from '@/lib/gap-course/view';
 import { Eyebrow, Panel } from '@/modules/istartup-score/components/chrome';
 
@@ -16,7 +17,12 @@ export const metadata: Metadata = { title: 'My Courses · iStartup Score' };
 export default async function LearnPage() {
   const userId = await sessionUserId();
   if (!userId) redirect('/start');
-  const cards = await listCourseCards(await listJobs(userId));
+  const [cards, company] = await Promise.all([
+    listJobsForViewer(userId).then((jobs) => listCourseCards(jobs, userId)),
+    companyForUser(userId),
+  ]);
+  // The lead still has co-founders who haven't joined: their courses wait on an invite.
+  const waiting = company && company.lead_user_id === userId ? company.members.filter((m) => m.role === 'cofounder' && !m.user_id) : [];
 
   return (
     <>
@@ -26,6 +32,20 @@ export default async function LearnPage() {
         Each assessment builds a course around your weakest dimensions. Finish every lesson to earn the 411
         Certificate, valid for 6 months, then retake the assessment to see your score move.
       </p>
+
+      {waiting.length ? (
+        <Panel className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-ink">
+            <span className="font-semibold">
+              {waiting.length} co-founder{waiting.length === 1 ? '' : 's'} not on the team yet.
+            </span>{' '}
+            Send each their invite link so they take the course and earn their own certificate.
+          </p>
+          <Link href="/team" className={buttonVariants({ size: 'sm', className: 'shrink-0' })}>
+            Invite your team <ArrowRight className="h-4 w-4" />
+          </Link>
+        </Panel>
+      ) : null}
 
       {cards.length === 0 ? (
         <Panel className="mt-8 text-center">

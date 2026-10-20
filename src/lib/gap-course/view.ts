@@ -1,4 +1,4 @@
-import { lmsRepos } from '@/brico/lms';
+import { lms, lmsRepos } from '@/brico/lms';
 import {
   curriculumId,
   enrollmentId,
@@ -30,21 +30,35 @@ const reportIdOf = (courseId: string) => {
   return reportId && /^[0-9a-f-]{36}$/i.test(reportId) ? reportId : null;
 };
 
+/**
+ * A course as `userId` sees it: their own enrolment, progress and certificate, whether
+ * they are the founder it was built for or a co-founder on the same company. A joined
+ * member who isn't enrolled yet (they joined after it was published) is enrolled here.
+ */
 export async function getCourseView(userId: string, courseId: string): Promise<CourseView | null> {
   const reportId = reportIdOf(courseId);
   const job = reportId ? await getJob(userId, reportId) : null;
-  return job ? loadCourseView(job) : null;
+  if (!job) return null;
+  const view = await loadCourseView(job, userId);
+  if (job.status === 'ready' && view.course?.status === 'published' && !view.enrollment && job.user_id !== userId) {
+    const enrolled = await lms().enroll({ courseId, userId, source: 'invite' });
+    if (enrolled.ok || enrolled.code === 'already_enrolled') return loadCourseView(job, userId);
+  }
+  return view;
 }
 
-/** Any founder's course, for the admin console. The caller must have checked admin access. */
-export async function getCourseViewForAdmin(courseId: string): Promise<CourseView | null> {
+/**
+ * Any founder's course, for the admin console, as `userId` (a member) saw it, the founder
+ * it was built for by default. The caller must have checked admin access.
+ */
+export async function getCourseViewForAdmin(courseId: string, userId?: string): Promise<CourseView | null> {
   const reportId = reportIdOf(courseId);
   const job = reportId ? await getJobById(reportId) : null;
-  return job ? loadCourseView(job) : null;
+  return job ? loadCourseView(job, userId ?? job.user_id) : null;
 }
 
-async function loadCourseView(job: CourseJob): Promise<CourseView> {
-  const { course_id: courseId, user_id: userId } = job;
+async function loadCourseView(job: CourseJob, userId: string): Promise<CourseView> {
+  const { course_id: courseId } = job;
   const repos = lmsRepos();
   const [course, enrollment, progress] = await Promise.all([
     repos.courses.get(courseId),
@@ -67,11 +81,12 @@ async function loadCourseView(job: CourseJob): Promise<CourseView> {
 }
 
 /** Courses with their learner's progress, in the order given — for /learn and the admin console. */
-export async function listCourseCards(jobs: CourseJob[]) {
+export async function listCourseCards(jobs: CourseJob[], viewerId?: string) {
   const repos = lmsRepos();
   return Promise.all(
     jobs.map(async (job) => {
-      const userId = job.user_id;
+      // Progress is the viewer's own; for the admin lists, the founder it was built for.
+      const userId = viewerId ?? job.user_id;
       const [progress, enrollment] =
         job.status === 'ready'
           ? await Promise.all([

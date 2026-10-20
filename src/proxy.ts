@@ -13,7 +13,7 @@ import { USER_COOKIE, verifyUserSession } from '@/lib/user-auth';
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  const founderOnly = ['/interview', '/learn', '/certificate'].some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  const founderOnly = ['/interview', '/learn', '/certificate', '/team'].some((p) => pathname === p || pathname.startsWith(`${p}/`));
   if (founderOnly) {
     const userId = await verifyUserSession(request.cookies.get(USER_COOKIE)?.value);
     if (userId) return NextResponse.next();
@@ -35,5 +35,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/interview/:path*', '/learn/:path*', '/certificate/:path*'],
+  matcher: ['/admin/:path*', '/interview/:path*', '/learn/:path*', '/certificate/:path*', '/team/:path*'],
 };

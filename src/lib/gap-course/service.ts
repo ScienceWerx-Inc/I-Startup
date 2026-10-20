@@ -4,6 +4,7 @@ import { assessmentRepos } from '@/brico/assessment';
 import { lessonContentId, lms, lmsRepos } from '@/brico/lms';
 import { questionKeyId, type AnswerKey, type Assessment, type Question, type QuestionPayload } from '@/features/assessment/domain';
 import type { Course, CurriculumSection, LessonContent } from '@/features/lms/domain';
+import { companyForUser, ensureCompany, getCompany, isMember, memberUserIds, type Company } from '@/lib/company';
 import { col, db, isAlreadyExists, nowIso } from '@/lib/db';
 import { courseAccess, entitlements } from '@/lib/payments';
 import type { StartupProfile } from '@/modules/istartup-score/assessment/bank';
@@ -73,6 +74,8 @@ export interface CourseJob {
   description?: string;
   modules?: JobModule[];
   error?: string;
+  /** The founder's company: every joined member is enrolled and graded on this course. */
+  company_id?: string;
   /** The admin who generated this course for the founder from the console, if one did. */
   created_by?: string;
   /** When the current outline/publish attempt began, to recover from a crashed request. */
@@ -99,9 +102,18 @@ export const reportIdFor = (courseId: string) => (courseId.startsWith('gap_') ? 
 
 const jobRef = (reportId: string) => col('courseJobs').doc(reportId);
 
+/** The company a job belongs to: stored on newer jobs, the lead's company on older ones. */
+export async function jobCompany(job: CourseJob): Promise<Company | null> {
+  if (job.company_id) return getCompany(job.company_id);
+  return companyForUser(job.user_id);
+}
+
+/** A job the user may see: their own, or one of their company's (a co-founder's view). */
 export async function getJob(userId: string, reportId: string): Promise<CourseJob | null> {
   const job = await getJobById(reportId);
-  return job?.user_id === userId ? job : null;
+  if (!job) return null;
+  if (job.user_id === userId) return job;
+  return isMember(await jobCompany(job), userId) ? job : null;
 }
 
 /** A job whoever owns it. Admin-only: founder-facing callers go through `getJob`. */
@@ -123,6 +135,20 @@ export async function listJobs(userId: string): Promise<CourseJob[]> {
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
 }
 
+/** Every course a founder can take: their own, and their company's (from the lead or anyone). */
+export async function listJobsForViewer(userId: string): Promise<CourseJob[]> {
+  const company = await companyForUser(userId);
+  const [own, byCompany, byLead] = await Promise.all([
+    col('courseJobs').where('user_id', '==', userId).get(),
+    company ? col('courseJobs').where('company_id', '==', company.id).get() : null,
+    // Jobs made before companies existed carry only the lead's id.
+    company && company.lead_user_id !== userId ? col('courseJobs').where('user_id', '==', company.lead_user_id).get() : null,
+  ]);
+  const jobs = new Map<string, CourseJob>();
+  for (const snap of [own, byCompany, byLead]) for (const d of snap?.docs ?? []) jobs.set(d.id, d.data() as CourseJob);
+  return [...jobs.values()].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+}
+
 /* ─────────────────────────────────── start ─────────────────────────────────── */
 
 /**
@@ -138,9 +164,11 @@ export async function startCourse(userId: string, reportId: string, opts: { crea
 
   const ref = jobRef(reportId);
   const now = nowIso();
+  const company = await ensureCompany(userId);
   let job: CourseJob;
   try {
     job = {
+      company_id: company.id,
       id: reportId,
       user_id: userId,
       course_id: courseIdFor(reportId),
@@ -170,7 +198,7 @@ export async function startCourse(userId: string, reportId: string, opts: { crea
   }
 
   try {
-    const outline = await generateOutline(job.plan);
+    const outline = await generateOutline(job.plan, { courseId: job.course_id });
     const modules: JobModule[] = outline.modules.map((m) => ({
       id: `sec_${randomUUID().slice(0, 8)}`,
       key: m.key,
@@ -267,7 +295,7 @@ export async function writeLesson(userId: string, reportId: string, lessonId: st
       previousTitles: order.slice(0, index).map((x) => x.lesson.title),
       nextTitle: order[index + 1]?.lesson.title,
       isWorkshop: taught.length > 1 && taught[taught.length - 1].id === lessonId,
-    });
+    }, { courseId: job.course_id });
     const content: Omit<LessonContent, 'createdAt' | 'updatedAt' | 'version'> = {
       id: lessonContentId(lessonId),
       courseId: job.course_id,
@@ -333,7 +361,7 @@ async function writeQuiz(job: CourseJob, module: JobModule, quizLessonId: string
       plan: job.plan,
       moduleTitle: module.title,
       lessons: taught.map((l, i) => ({ title: l.title, brief: l.brief, keyPoints: contents[i]?.keyPoints ?? [] })),
-    });
+    }, { courseId: job.course_id });
 
     const repos = assessmentRepos();
     const assessmentId = assessmentIdFor(quizLessonId);
@@ -464,6 +492,12 @@ export async function finishCourse(userId: string, reportId: string): Promise<Co
       source: job.created_by ? 'admin' : paid ? 'purchase' : 'free',
     });
     if (!enrolled.ok && enrolled.code !== 'already_enrolled') throw new Error(enrolled.message);
+    // Every co-founder who has joined takes the course too, on their own enrolment.
+    const team = await jobCompany(job);
+    for (const memberId of team ? memberUserIds(team).filter((id) => id !== userId) : []) {
+      const r = await service.enroll({ courseId: job.course_id, userId: memberId, source: 'invite' });
+      if (!r.ok && r.code !== 'already_enrolled') console.error('Co-founder enrol failed:', r.message);
+    }
 
     await ref.update({ status: 'ready', error: null, updated_at: nowIso() });
     return { ...job, status: 'ready', error: undefined };

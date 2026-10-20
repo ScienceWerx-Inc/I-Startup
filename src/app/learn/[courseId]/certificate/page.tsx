@@ -4,6 +4,8 @@ import { notFound, redirect } from 'next/navigation';
 import { buttonVariants } from '@/components/ui/button';
 import { sessionUserId } from '@/lib/account';
 import { CERTIFICATE_NAME } from '@/lib/gap-course/shared';
+import { getCourseGrade, upsertCourseGrade } from '@/lib/gap-course/grades';
+import { jobCompany } from '@/lib/gap-course/service';
 import { getCourseView } from '@/lib/gap-course/view';
 import { CertificateScroller, CourseCertificate } from '@/modules/certificates/certificate';
 import { PrintButton } from '@/modules/gap-course/lesson-actions';
@@ -23,6 +25,10 @@ export default async function CertificatePage({ params }: { params: Promise<{ co
   if (!view) notFound();
 
   const { certificate, job } = view;
+  // The founder's own grade, as stored when they finished (computed now for older courses).
+  const [company, stored] = await Promise.all([jobCompany(job), getCourseGrade(courseId, userId)]);
+  const grade = stored ?? (certificate ? await upsertCourseGrade(job, userId, certificate.learnerNameSnap) : null);
+  const companyName = company?.name || job.plan.startup.name;
   if (!certificate) {
     return (
       <div className="mx-auto max-w-xl rounded-card bg-surface p-8 text-center">
@@ -45,10 +51,11 @@ export default async function CertificatePage({ params }: { params: Promise<{ co
       </div>
       <CertificateScroller>
         <CourseCertificate
-        learnerName={certificate.learnerNameSnap}
+        companyName={companyName}
+        founderName={certificate.learnerNameSnap}
         courseTitle={certificate.courseTitleSnap}
-        startupName={job.plan.startup.name}
         modules={job.plan.modules.map((m) => m.title)}
+        grade={grade?.percent != null && grade.letter ? { percent: grade.percent, letter: grade.letter } : null}
         code={certificate.code}
         issuedAt={certificate.issuedAt}
         revokedAt={certificate.revokedAt}

@@ -1,16 +1,16 @@
 import { randomUUID } from 'node:crypto';
 
-import { costOf, type TokenUsage } from '@/lib/ai-pricing';
+import { aiPrices, costOf, type TokenUsage } from '@/lib/ai-pricing';
 import { col, nowIso } from '@/lib/db';
 
 /**
  * One row per model call in `istartup_ai_usage`, for the admin cost report: the feature
- * (outline, lesson, quiz), whether the memo cache answered it, its tokens and USD cost —
+ * (outline, lesson, quiz, narration), whether the memo cache answered it, its tokens and USD cost —
  * and, for a cache hit, what the call it replaced would have cost.
  */
 
 export interface AiUsageRow {
-  feature: 'outline' | 'lesson' | 'quiz';
+  feature: 'outline' | 'lesson' | 'quiz' | 'narration';
   cache: 'miss' | 'hit';
   input_tokens: number;
   output_tokens: number;
@@ -29,9 +29,11 @@ export function recordAiUsage(input: {
   usage: TokenUsage | null;
   durationMs: number;
   courseId?: string | null;
+  /** The model's rates, when it isn't the text model (narration uses `ttsPrices()`). */
+  prices?: ReturnType<typeof aiPrices>;
 }): void {
   const usage = input.usage ?? { inputTokens: 0, outputTokens: 0, thoughtsTokens: 0 };
-  const cost = costOf(usage);
+  const cost = costOf(usage, input.prices);
   const row: AiUsageRow = {
     feature: input.feature,
     cache: input.cache,

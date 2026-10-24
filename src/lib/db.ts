@@ -35,6 +35,8 @@ export const COLLECTIONS = {
   courseGrades: 'istartup_course_grades',
   /** One row per model call: feature, tokens, cost, cache hit or miss (see lib/ai-pricing.ts). */
   aiUsage: 'istartup_ai_usage',
+  /** `{fingerprint of voice + words}` → one recorded slide narration (MP3 bytes); see lib/lessons/narration-clips.ts. */
+  narrationClips: 'istartup_narration_clips',
 } as const;
 
 export function isDatabaseConfigured(): boolean {

@@ -6,7 +6,6 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { BookText, Presentation } from 'lucide-react';
 
 import type { LessonContent } from '@/features/lms/domain';
-import { EXERCISE_PREFIX } from '@/lib/gap-course/shared';
 import { cn } from '@/lib/utils';
 
 import { LessonSlides } from './lesson-slides';
@@ -110,25 +109,10 @@ export function LessonReader({ content, title, finishTargetId, children, record 
       </div>
 
       {view === 'slides' ? (
-        <LessonSlides content={slideContent(content)} exercise={exerciseOf(content.body)} title={title} finishTargetId={finishTargetId} record={record} />
+        <LessonSlides content={content} title={title} finishTargetId={finishTargetId} record={record} />
       ) : (
         children
       )}
     </div>
   );
-}
-
-/** The body's closing "Your exercise: …" paragraph, shown on its own slide. */
-function exerciseOf(body?: string): string | undefined {
-  const p = (body ?? '').split(/\n\s*\n/).find((x) => x.startsWith(EXERCISE_PREFIX));
-  return p ? p.slice(EXERCISE_PREFIX.length) : undefined;
-}
-
-/** The content with the exercise paragraph taken out of the prose the deck splits into slides. */
-function slideContent<T extends { body?: string }>(content: T): T {
-  const body = (content.body ?? '')
-    .split(/\n\s*\n/)
-    .filter((x) => !x.startsWith(EXERCISE_PREFIX))
-    .join('\n\n');
-  return { ...content, body };
 }

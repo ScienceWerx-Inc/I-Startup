@@ -19,6 +19,18 @@
       "version": "0.1.0",
       "installPath": "src/features/lms",
       "addedAt": "2026-10-15"
+    },
+    {
+      "name": "talking-avatar",
+      "version": "0.1.0",
+      "installPath": "src/modules/talking-avatar",
+      "addedAt": "2026-10-24"
+    },
+    {
+      "name": "lesson-narration",
+      "version": "0.1.0",
+      "installPath": "src/lib/narration",
+      "addedAt": "2026-10-24"
     }
   ]
 }

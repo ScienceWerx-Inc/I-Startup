@@ -10,13 +10,18 @@
  *   as-is: `sanitizeDeck` clamps every field, restricts icons and layouts to the
  *   lists below, and drops what doesn't fit.
  *
- * Ported from ScienceWerx (src/lib/lms/lesson-deck.ts) without its narration.
+ * Ported from ScienceWerx (src/lib/lms/lesson-deck.ts), narration included
+ * (`slideSpeech`, read through the lesson-narration brick in lib/narration).
  *
  * Slides are presentation, not content of record: the lesson text stays the
  * source, and a deck never touches structure, progress or completion.
  *
  * Pure and client-safe — the player builds the fallback deck in the browser.
  */
+
+import { EXERCISE_PREFIX } from '@/lib/gap-course/shared';
+import { speakable } from '@/lib/narration/narration';
+import { narrationPhrases, spokenList } from '@/lib/narration/narration-phrases';
 
 /* ------------------------------------------------------------------ types */
 
@@ -278,12 +283,46 @@ export function deckFromLesson(lesson: DeckLessonInput): LessonDeck {
   return { slides: slides.slice(0, DECK_MAX_SLIDES), source: 'derived' };
 }
 
+/* -------------------------------------------------------------- narration */
+
+/** Six ordinals, then "Also": what ScienceWerx decks say, so the wording matches. */
+const spoken = (items: string[], language?: string) => spokenList(items, language, 6);
+
+/**
+ * What the narrator says on a slide: its `say` when the deck has one, else
+ * words built from the slide itself, written to be heard (see `speakable`).
+ * A check slide says just enough to hand over to the learner.
+ */
+export function slideSpeech(slide: DeckSlide, language?: string): string {
+  if (slide.say?.trim()) return speakable(slide.say);
+  const p = narrationPhrases(language);
+  switch (slide.kind) {
+    case 'title':
+      return speakable([slide.title, slide.subtitle].filter(Boolean).map((t) => t!.replace(/[.!?]*$/, '.')).join(' '));
+    case 'concept':
+      return speakable(`${slide.title.replace(/…$/, '')}. ${slide.points.join(' ')}`);
+    case 'steps':
+      return speakable(`${slide.title}. ${spoken(slide.steps.map((s) => (s.detail ? `${s.label}: ${s.detail}` : s.label)), language)}`);
+    case 'compare':
+      return speakable(`${slide.title}. ${p.onOneSide}${p.comma}${slide.left.label}: ${slide.left.points.join(' ')} ${p.onTheOther}${p.comma}${slide.right.label}: ${slide.right.points.join(' ')}`);
+    case 'highlight':
+      return speakable(`${slide.tone === 'warning' ? p.watchOut : p.keyIdea} ${slide.text}`);
+    case 'diagram':
+      return p.diagram;
+    case 'keypoints':
+      return speakable(`${p.deckKeyPoints} ${spoken(slide.points, language)}`);
+    case 'check':
+      return p.check;
+    case 'recap':
+      return speakable(`${p.recap} ${spoken(slide.points, language)} ${p.nicelyDone}`);
+  }
+}
+
 /* --------------------------------------------------- the slides shown */
 
 /**
  * The slides a learner actually sees for a lesson: its designed deck when it
  * has a usable one, otherwise the deck derived from its text.
-
  */
 export function lessonSlides(
   content: DeckLessonInput & { deck?: { source?: string; slides?: unknown } },
@@ -297,4 +336,34 @@ export function lessonSlides(
         })
       : null;
   return designed ?? deckFromLesson(content).slides;
+}
+
+/** The body's closing "Your exercise: …" paragraph, shown on its own slide. */
+export function exerciseOf(body?: string): string | undefined {
+  const p = (body ?? '').split(/\n\s*\n/).find((x) => x.startsWith(EXERCISE_PREFIX));
+  return p ? p.slice(EXERCISE_PREFIX.length) : undefined;
+}
+
+/**
+ * The slide view of a gap-course lesson: its deck, with the exercise paragraph
+ * taken out of the prose and given its own "Apply it to your startup" slide
+ * before the self-check.
+ *
+ * One function for the player and the narration route, because a recording is
+ * made for a slide by index — both must agree on exactly which slides exist.
+ */
+export function learnerSlides(
+  content: Omit<DeckLessonInput, 'title'> & { deck?: { source?: string; slides?: unknown } },
+  title: string,
+): DeckSlide[] {
+  const exercise = exerciseOf(content.body);
+  const body = (content.body ?? '')
+    .split(/\n\s*\n/)
+    .filter((x) => !x.startsWith(EXERCISE_PREFIX))
+    .join('\n\n');
+  const deck = lessonSlides({ ...content, body, title });
+  if (!exercise) return deck;
+  const at = deck.findIndex((s) => s.kind === 'check' || s.kind === 'recap');
+  const task: DeckSlide = { kind: 'concept', title: 'Apply it to your startup', points: [exercise], icon: 'pen-tool' };
+  return at < 0 ? [...deck, task] : [...deck.slice(0, at), task, ...deck.slice(at)];
 }

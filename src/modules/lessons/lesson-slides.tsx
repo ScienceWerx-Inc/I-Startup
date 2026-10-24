@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ComponentType } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
@@ -37,7 +37,9 @@ import {
   Maximize2,
   MessageCircle,
   Minimize2,
+  Pause,
   PenTool,
+  Play,
   Puzzle,
   Quote,
   Repeat,
@@ -50,17 +52,25 @@ import {
   Target,
   TrendingUp,
   User,
+  UserRound,
   Users,
+  Volume2,
+  VolumeX,
   Workflow,
   Wrench,
   Zap,
 } from 'lucide-react';
 
 import type { LessonCheckpoint, LessonContent } from '@/features/lms/domain';
-import { lessonSlides } from '@/lib/lessons/deck';
+import { learnerSlides, slideSpeech } from '@/lib/lessons/deck';
 import type { DeckSlide, SlideIcon } from '@/lib/lessons/deck';
+import { NARRATION_MAX_CHARS, NARRATOR, slideClipUrl } from '@/lib/lessons/narrator';
+import { pickNaturalVoice } from '@/lib/narration/speech-voice';
 import { cn } from '@/lib/utils';
 import { Checkpoint } from '@/modules/gap-course/lesson-actions';
+import { createVoiceContext, MediaVoice, SyntheticVoice, type VoiceSource } from '@/modules/talking-avatar/levels';
+import { einsteinPersona, type NarratorPhase } from '@/modules/talking-avatar/personas';
+import { TalkingAvatar } from '@/modules/talking-avatar/talking-avatar';
 
 import { MermaidView } from './mermaid-view';
 
@@ -71,7 +81,14 @@ import { MermaidView } from './mermaid-view';
  * stored data is never rendered on trust), otherwise derived from the text on
  * the spot, so every lesson has slides. Keyboard (← → space), swipe, a
  * clickable progress bar and full screen. Ported from ScienceWerx
- * (src/components/learn/lesson-slides.tsx) without its narration.
+ * (src/components/learn/lesson-slides.tsx).
+ *
+ * "Narrate" reads each slide aloud the ScienceWerx way: a recorded Gemini voice
+ * (made on first listen, then cached — /api/course/narration), shown as the
+ * holographic Einstein whose lips follow the real audio (talking-avatar brick),
+ * with captions. If a recording can't be had, the device's most natural voice
+ * reads the slide and the face keeps a speaking rhythm. "Auto-play" moves on
+ * when the narration ends.
  *
  * Motion carries the rhythm (slides glide, points arrive one by one, steps draw
  * their connector), and all of it collapses under prefers-reduced-motion.
@@ -111,24 +128,29 @@ interface Props {
   finishTargetId?: string;
   /** Saves the founder's first checkpoint answer (the course score). */
   record?: { courseId: string; lessonId: string; learnerId?: string };
-  /** The lesson's "apply it to your startup" task, given its own slide before the self-check. */
-  exercise?: string;
 }
 
-export function LessonSlides({ content, title, finishTargetId, record, exercise }: Props) {
+const PERSONA = einsteinPersona();
+const noSubscribe = () => () => {};
+
+/** A first recording takes a few seconds; past this the browser voice reads the slide instead. */
+const RECORDING_PATIENCE_MS = 20_000;
+
+export function LessonSlides({ content, title, finishTargetId, record }: Props) {
   const reduceMotion = useReducedMotion() ?? false;
 
-  const slides = useMemo<DeckSlide[]>(() => {
-    const deck = lessonSlides({ ...content, title });
-    if (!exercise) return deck;
-    const at = deck.findIndex((s) => s.kind === 'check' || s.kind === 'recap');
-    const task: DeckSlide = { kind: 'concept', title: 'Apply it to your startup', points: [exercise], icon: 'pen-tool' };
-    return at < 0 ? [...deck, task] : [...deck.slice(0, at), task, ...deck.slice(at)];
-  }, [content, title, exercise]);
+  // The exercise paragraph becomes its own slide before the self-check (learnerSlides).
+  const slides = useMemo<DeckSlide[]>(() => learnerSlides(content, title), [content, title]);
 
   const [index, setIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const [fullscreen, setFullscreen] = useState(false);
+  const [narrate, setNarrate] = useState(false);
+  const [autoplay, setAutoplay] = useState(false);
+  const [showFace, setShowFace] = useState(true);
+  /** Where the narrator is, set only from audio callbacks; the phase is derived from it. */
+  const [said, setSaid] = useState<{ at: number; state: 'speaking' | 'done' } | null>(null);
+  const [voice, setVoice] = useState<VoiceSource | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const pointer = useRef<number | null>(null);
 
@@ -181,6 +203,163 @@ export function LessonSlides({ content, title, finishTargetId, record, exercise 
     else void el.requestFullscreen?.().catch(() => undefined);
   };
 
+  /* ---- narration: the slide's recording, else the most natural voice on the device ---- */
+  const speech = useMemo(() => slideSpeech(slide), [slide]);
+  const phase: NarratorPhase = !narrate ? 'idle' : said?.at !== index ? 'thinking' : said.state === 'speaking' ? 'speaking' : 'idle';
+  const indexRef = useRef(index);
+  const autoplayRef = useRef(autoplay);
+  useEffect(() => {
+    indexRef.current = index;
+    autoplayRef.current = autoplay;
+  }, [index, autoplay]);
+  /** One <audio> for every clip: an element can be routed into Web Audio only once. */
+  const player = useRef<{ audio: HTMLAudioElement; lips: MediaVoice | null } | null>(null);
+  const synthetic = useRef<SyntheticVoice | null>(null);
+
+  const startNarrating = () => {
+    // Inside the click: iOS only lets audio start, and an AudioContext run, from a gesture.
+    if (!player.current) {
+      const audio = new Audio();
+      audio.preload = 'auto';
+      let lips: MediaVoice | null = null;
+      try {
+        lips = new MediaVoice(audio, createVoiceContext());
+      } catch {
+        // No Web Audio: the clip still plays, and the face keeps a speaking rhythm instead.
+      }
+      player.current = { audio, lips };
+    }
+    void player.current.lips?.ctx.resume().catch(() => undefined);
+    setSaid(null);
+    setNarrate(true);
+  };
+
+  useEffect(() => {
+    if (!narrate || typeof window === 'undefined') return;
+    const at = index;
+    const audio = player.current?.audio;
+    const synth = (synthetic.current ??= new SyntheticVoice());
+    let finished = false;
+    let fellBack = false;
+
+    const advance = () => {
+      if (autoplayRef.current && indexRef.current === at && at < last) {
+        setTimeout(() => {
+          if (indexRef.current === at) {
+            setDirection(1);
+            setIndex(at + 1);
+          }
+        }, 700);
+      }
+    };
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      synth.stop();
+      setSaid({ at, state: 'done' });
+      advance();
+    };
+
+    // The device's voice, when there's no recording to play.
+    const speakWithBrowser = () => {
+      if (fellBack || finished) return;
+      fellBack = true;
+      if (audio) {
+        audio.pause();
+        audio.removeAttribute('src');
+      }
+      if (!('speechSynthesis' in window)) {
+        setSaid({ at, state: 'done' });
+        return;
+      }
+      const s = window.speechSynthesis;
+      const utterance = new SpeechSynthesisUtterance(speech);
+      const best = pickNaturalVoice(s.getVoices(), document.documentElement.lang || navigator.language || 'en-US');
+      if (best) {
+        utterance.voice = best;
+        utterance.lang = best.lang;
+      }
+      utterance.onstart = () => {
+        synth.start();
+        setVoice(synth);
+        setSaid({ at, state: 'speaking' });
+      };
+      utterance.onboundary = () => synth.boundary();
+      utterance.onend = done;
+      utterance.onerror = () => {
+        synth.stop();
+        setSaid({ at, state: 'done' });
+      };
+      // A tick's delay: Chrome drops an utterance queued in the same task as cancel().
+      setTimeout(() => !finished && s.speak(utterance), 60);
+    };
+
+    // One voice at a time: anything else playing on the page stops for the narrator.
+    document.querySelectorAll<HTMLMediaElement>('audio, video').forEach((m) => m !== audio && !m.paused && m.pause());
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+
+    const recordable = record && audio && speech.trim() && speech.length <= NARRATION_MAX_CHARS;
+    let patience: ReturnType<typeof setTimeout> | undefined;
+    if (recordable) {
+      audio.src = slideClipUrl(record.courseId, record.lessonId, at, speech);
+      audio.onplaying = () => {
+        clearTimeout(patience);
+        // Real lip-sync from the audio when Web Audio is there; a speaking rhythm otherwise.
+        if (player.current?.lips) setVoice(player.current.lips);
+        else {
+          synth.start();
+          setVoice(synth);
+        }
+        setSaid({ at, state: 'speaking' });
+      };
+      audio.onended = done;
+      audio.onerror = speakWithBrowser;
+      patience = setTimeout(() => audio.readyState < 3 && speakWithBrowser(), RECORDING_PATIENCE_MS);
+      audio.play().catch((error: unknown) => {
+        // A newer slide replacing this one aborts the play; anything else means no recording.
+        if (!(error instanceof DOMException && error.name === 'AbortError')) speakWithBrowser();
+      });
+      // Record the next slide while this one plays, so moving on doesn't wait.
+      const next = slides[at + 1];
+      const nextSpeech = next ? slideSpeech(next) : '';
+      if (nextSpeech.trim() && nextSpeech.length <= NARRATION_MAX_CHARS) {
+        void fetch(slideClipUrl(record.courseId, record.lessonId, at + 1, nextSpeech)).catch(() => undefined);
+      }
+    } else {
+      speakWithBrowser();
+    }
+
+    return () => {
+      finished = true;
+      clearTimeout(patience);
+      if (audio) {
+        audio.onplaying = audio.onended = audio.onerror = null;
+        audio.pause();
+      }
+      synth.stop();
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    };
+  }, [narrate, index, speech, slides, last, record]);
+
+  // Leaving the slides: silence, and release the audio graph.
+  useEffect(
+    () => () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+      const p = player.current;
+      if (p) {
+        p.audio.pause();
+        p.lips?.dispose();
+        void p.lips?.ctx.close().catch(() => undefined);
+        player.current = null;
+      }
+    },
+    [],
+  );
+
+  // Read after hydration, so the server and the first client render agree.
+  const browserVoice = useSyncExternalStore(noSubscribe, () => 'speechSynthesis' in window, () => false);
+  const narrationSupported = Boolean(record) || browserVoice;
+
   const variants = reduceMotion
     ? { enter: { opacity: 0 }, center: { opacity: 1 }, exit: { opacity: 0 } }
     : {
@@ -220,6 +399,43 @@ export function LessonSlides({ content, title, finishTargetId, record, exercise 
           </button>
         ))}
       </div>
+
+      {/* The narrator: Einstein's face, lip-synced to the voice, and live captions. */}
+      {narrate && (
+        <div className="relative z-10 flex items-center gap-3 border-b border-line bg-surface px-4 py-2.5">
+          {showFace && !reduceMotion && (
+            <TalkingAvatar
+              persona={PERSONA}
+              voice={voice}
+              phase={phase}
+              label={`${NARRATOR.name}, narrating`}
+              className="h-20 w-20 shrink-0 rounded-xl ring-1 ring-tech/30 sm:h-24 sm:w-24"
+            />
+          )}
+          <div className="min-w-0 flex-1" aria-live="polite">
+            <p className="text-xs font-medium text-mut">
+              {NARRATOR.name}
+              <span className="text-mut/70">
+                {' · '}
+                {phase === 'thinking' ? 'getting ready…' : phase === 'speaking' ? 'speaking' : autoplay ? 'auto-play on' : 'finished this slide'}
+              </span>
+            </p>
+            <p className="mt-0.5 line-clamp-2 text-sm leading-snug text-ink sm:line-clamp-3">{speech}</p>
+          </div>
+          {!reduceMotion && (
+            <button
+              type="button"
+              onClick={() => setShowFace((v) => !v)}
+              aria-pressed={showFace}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line text-mut transition-colors hover:bg-mist hover:text-ink"
+              aria-label={showFace ? 'Hide the narrator' : 'Show the narrator'}
+              title={showFace ? 'Hide the narrator' : 'Show the narrator'}
+            >
+              <UserRound className={cn('h-4 w-4', !showFace && 'opacity-50')} />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* The stage. */}
       <div
@@ -278,6 +494,43 @@ export function LessonSlides({ content, title, finishTargetId, record, exercise 
         </span>
 
         <div className="ml-auto flex items-center gap-1.5">
+          {narrationSupported && (
+            <>
+              <button
+                type="button"
+                onClick={() => (narrate ? setNarrate(false) : startNarrating())}
+                aria-pressed={narrate}
+                className={cn(
+                  'inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors',
+                  narrate ? 'border-tech/50 bg-tech/10 text-tech' : 'border-line hover:bg-mist',
+                )}
+                title={`${NARRATOR.name} reads each slide aloud`}
+              >
+                {narrate ? (
+                  <Volume2 className={cn('h-4 w-4', phase === 'speaking' && !reduceMotion && 'animate-pulse')} />
+                ) : (
+                  <VolumeX className="h-4 w-4" />
+                )}
+                <span className="hidden sm:inline">Narrate</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAutoplay((a) => !a);
+                  if (!narrate) startNarrating();
+                }}
+                aria-pressed={autoplay}
+                className={cn(
+                  'inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors',
+                  autoplay ? 'border-tech/50 bg-tech/10 text-tech' : 'border-line hover:bg-mist',
+                )}
+                title="Move to the next slide when the narration ends"
+              >
+                {autoplay ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                <span className="hidden sm:inline">Auto-play</span>
+              </button>
+            </>
+          )}
           <button
             type="button"
             onClick={toggleFullscreen}

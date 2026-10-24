@@ -25,6 +25,19 @@ export function aiPrices() {
   };
 }
 
+/**
+ * Gemini 2.5 Flash TTS on Vertex AI (slide narration), USD per million tokens: text
+ * input $0.50, audio output $10 (25 audio tokens a second). Override with
+ * AI_TTS_PRICE_INPUT_PER_M / AI_TTS_PRICE_OUTPUT_PER_M.
+ */
+export function ttsPrices() {
+  return {
+    model: 'Gemini 2.5 Flash TTS (Vertex AI)',
+    inputPerM: rate(process.env.AI_TTS_PRICE_INPUT_PER_M, 0.5),
+    outputPerM: rate(process.env.AI_TTS_PRICE_OUTPUT_PER_M, 10),
+  };
+}
+
 /** USD for one call's tokens. */
 export function costOf(usage: TokenUsage, prices = aiPrices()): number {
   return (usage.inputTokens * prices.inputPerM + (usage.outputTokens + usage.thoughtsTokens) * prices.outputPerM) / 1_000_000;

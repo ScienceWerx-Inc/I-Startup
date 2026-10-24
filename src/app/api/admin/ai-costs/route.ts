@@ -10,6 +10,7 @@ const FEATURES = [
   { key: 'outline', label: 'Course outline', note: 'One per course: modules, lessons and briefs' },
   { key: 'lesson', label: 'Lesson writing', note: 'One per lesson: body, diagram, key points, exercise, checkpoint' },
   { key: 'quiz', label: 'Module quiz', note: 'One per module: six graded questions' },
+  { key: 'narration', label: 'Slide narration', note: 'One per slide recording (Gemini TTS); replays of a stored clip are free and not counted' },
 ] as const;
 
 const avg = (sum: number, n: number) => (n ? sum / n : 0);

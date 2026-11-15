@@ -5,13 +5,13 @@ import { motion, useInView } from 'framer-motion';
 import { MessageSquareText, Scale, ShieldAlert, type LucideIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { BAND_RANGES, DIMENSIONS, MAX_SCORE, QUESTION_COUNT } from './data';
+import { BAND_RANGES, DIMENSIONS, QUESTION_COUNT } from './data';
 import { Accent, SectionHeading, VIEW, useTiming, wrap } from './primitives';
 
 /**
- * How the score is made, and what it cannot tell you: the real weights and formula, the
- * four bands with their ranges, and the limits, stated plainly. It claims no authorship or
- * validation the product has not documented.
+ * What the score means, and what it cannot tell you: the four bands with their ranges,
+ * and the limits, stated plainly. It claims no authorship or validation the product has
+ * not documented.
  */
 
 const LIMITS: { icon: LucideIcon; title: string; body: string }[] = [
@@ -54,7 +54,7 @@ export function Scoring() {
             eyebrow="How the score works"
             title={
               <>
-                One published formula, <Accent>and its limits.</Accent>
+                What the score means, <Accent>and its limits.</Accent>
               </>
             }
             lead={`${QUESTION_COUNT} questions across ${DIMENSIONS.length} weighted dimensions. Each answer is a written description, so it means the same thing for everyone.`}
@@ -76,26 +76,6 @@ export function Scoring() {
 
         <div ref={ref} className="grid gap-4 lg:col-span-7 lg:self-center">
           <motion.div className="bi-glass rounded-card p-5 sm:p-6" {...card(0.1)}>
-            <h3 className="bi-data font-semibold text-ink">The formula</h3>
-            <p className="mt-1 text-[14px] leading-relaxed text-mut">
-              Each dimension&apos;s result, as a percentage, times its weight, summed and scaled to {MAX_SCORE}.
-            </p>
-            <p className="bi-data mt-4 flex flex-wrap items-center gap-x-1.5 gap-y-2 text-mut">
-              <span className="font-semibold text-ink">Score =</span>
-              <span>{MAX_SCORE / 100} × (</span>
-              {DIMENSIONS.map((d, i) => (
-                <span key={d.key} className="inline-flex items-center gap-1.5">
-                  {i > 0 && <span aria-hidden>+</span>}
-                  <span className="rounded-full bg-mist px-2.5 py-1 text-ink tabular-nums">
-                    {d.title} × {d.weight.toFixed(2)}
-                  </span>
-                </span>
-              ))}
-              <span>)</span>
-            </p>
-          </motion.div>
-
-          <motion.div className="bi-glass rounded-card p-5 sm:p-6" {...card(0.2)}>
             <h3 className="bi-data font-semibold text-ink">Readiness bands</h3>
             <ol className="mt-4 grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-4">
               {BAND_RANGES.map((b, i) => (

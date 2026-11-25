@@ -1,7 +1,9 @@
+import { after } from 'next/server';
 import { z } from 'zod';
 
 import { sessionUserId, toPublicUser, getUser } from '@/lib/account';
 import { InviteError, inviteInfo, redeemInvite } from '@/lib/company';
+import { linkOrigin, sendVerificationEmail } from '@/lib/email-verification';
 import { sessionVersionOf, signUserSession, userCookieHeader } from '@/lib/user-auth';
 
 export const runtime = 'nodejs';
@@ -34,6 +36,11 @@ export async function POST(request: Request) {
   try {
     const { userId } = await redeemInvite({ token: parsed.data.token, password: parsed.data.password, signedInUserId: signedIn });
     const user = await getUser(userId);
+    // An invite link can be forwarded, so joining proves nothing about the mailbox.
+    if (user && !user.email_verified_at) {
+      const origin = linkOrigin(request);
+      after(() => sendVerificationEmail(user, origin).catch(() => undefined));
+    }
     const headers = signedIn ? undefined : { 'Set-Cookie': userCookieHeader(await signUserSession(userId, user ? sessionVersionOf(user) : 0)) };
     return Response.json({ user: user ? toPublicUser(user) : null }, { status: 201, headers });
   } catch (error) {

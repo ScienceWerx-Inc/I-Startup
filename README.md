@@ -99,6 +99,39 @@ istartup-standalone/
 
 ---
 
+## 🔗 ScienceWerx Connect and email verification
+
+iStartup shares a display-ready summary of the signed-in founder with other ScienceWerx
+apps (and shows theirs) server to server, matched by **verified** email only. Founders
+confirm their address through a 24-hour link emailed after sign-up or joining a team
+(`GET /api/auth/verify-email`, resend with `POST /api/auth/verify-email/resend`, 3 per hour).
+
+| Endpoint | Who | What |
+| :--- | :--- | :--- |
+| `GET /api/connect/v1/summary` | peers with the `summary` scope | latest score / 500, band, weakest dimension(s), course progress |
+| `GET /api/connect/v1/certificates` | peers with the `certificates` scope | 411 course certificates (VALID / EXPIRED / REVOKED) and the latest Readiness Certificate |
+| `GET /api/connect/peers` | the signed-in founder | FounderFit's summary card and Prism School's certificates, shown under "Connected apps" on `/learn` |
+
+Peers authenticate with `Authorization: Bearer swc_…` and name the person with
+`X-Connect-Subject: <email>`. Unknown or unverified people answer `{ "found": false }`.
+
+Environment (no `apphosting.yaml` exists yet; set these on the App Hosting backend,
+secrets through Cloud Secret Manager):
+
+| Variable | Secret | Format |
+| :--- | :--- | :--- |
+| `CONNECT_KEY` | yes | iStartup's caller key: `swc_` + 43 base64url characters (32 random bytes). Generate with `node -e "console.log('swc_'+require('crypto').randomBytes(32).toString('base64url'))"` |
+| `CONNECT_CALLERS` | no | who may call iStartup: `name:sha256hex:scope\|scope,…`, e.g. `prismscore:<sha256 of its key>:summary\|certificates,founderfit:<sha256>:summary\|certificates`. Hash with `printf %s "$KEY" \| shasum -a 256` |
+| `CONNECT_PEERS` | no | where peers live: `founderfit=https://founder-fit--founder-fit-6a455.us-east4.hosted.app,prismscore=https://www.prismscore.us` |
+| `MOREWERX_API_URL` | no | MoreWerx base URL; email is sent through its partner email API |
+| `MOREWERX_PARTNER_KEY` | yes | MoreWerx partner key with email enabled |
+| `APP_URL` | no | public origin for emailed links and Connect links (default for Connect: `https://istartupscore.com`) |
+
+Without `MOREWERX_*`, emails are not sent (logged without address or link); outside
+production the verification link is printed to the server console for local testing.
+
+---
+
 ## 📦 Scripts
 
 - `npm run dev`: Starts the Next.js dev server with Turbopack.

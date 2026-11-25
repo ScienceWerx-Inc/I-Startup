@@ -2,6 +2,7 @@ import { Cormorant_Garamond } from 'next/font/google';
 import type { ReactNode } from 'react';
 
 import { CERTIFICATE_VALID_MONTHS, certificateExpiry, isCertificateExpired } from '@/lib/gap-course/shared';
+import { scoreCertificateCode } from '@/lib/score-certificate-code';
 import { cn } from '@/lib/utils';
 import { Wordmark } from '@/modules/istartup-score/components/chrome';
 
@@ -195,8 +196,7 @@ export function CertificateScroller({ children }: { children: ReactNode }) {
 
 export const SCORE_CERTIFICATE_NAME = 'iSTARTUP Readiness Certificate';
 
-/** The readiness certificate's number, derived from its report: stable, never stored. */
-export const scoreCertificateCode = (reportId: string) => `IS-${reportId.replace(/-/g, '').slice(0, 10).toUpperCase()}`;
+export { scoreCertificateCode };
 
 /**
  * The company's own certificate, issued with every saved assessment: the startup, its score,

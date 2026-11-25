@@ -12,6 +12,8 @@ export interface AccountUser {
   email: string;
   fullName: string;
   onboarding: OnboardingAnswers;
+  /** False until the founder clicks the link emailed to them. */
+  emailVerified: boolean;
 }
 
 export interface ProductPrice {

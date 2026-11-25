@@ -8,6 +8,7 @@ import { sessionUserId } from '@/lib/account';
 import { companyForUser } from '@/lib/company';
 import { listJobsForViewer } from '@/lib/gap-course/service';
 import { listCourseCards } from '@/lib/gap-course/view';
+import { ConnectedApps } from '@/modules/connect/connected-apps';
 import { Eyebrow, Panel } from '@/modules/istartup-score/components/chrome';
 
 export const dynamic = 'force-dynamic';
@@ -104,6 +105,8 @@ export default async function LearnPage() {
           ))}
         </ul>
       )}
+
+      <ConnectedApps />
     </>
   );
 }

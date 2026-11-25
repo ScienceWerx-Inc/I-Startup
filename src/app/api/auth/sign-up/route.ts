@@ -1,9 +1,11 @@
+import { after } from 'next/server';
 import { z } from 'zod';
 
 import { normalizeEmail, toPublicUser } from '@/lib/account';
 import { createFounderAccount } from '@/lib/account-create';
 import { ensureCompany, setCofounders } from '@/lib/company';
 import { isDatabaseConfigured } from '@/lib/db';
+import { linkOrigin, sendVerificationEmail } from '@/lib/email-verification';
 import { signUserSession, userCookieHeader } from '@/lib/user-auth';
 import { validateCofounders } from '@/modules/istartup-score/onboarding/cofounders';
 import { OnboardingSchema } from '@/modules/istartup-score/onboarding/fields';
@@ -60,6 +62,9 @@ export async function POST(request: Request) {
     const company = await ensureCompany(id);
     if (team.cofounders.length) await setCofounders(company.id, team.cofounders);
     const token = await signUserSession(id);
+    // Prove the address is theirs; sent after the response so sign-up never waits on email.
+    const origin = linkOrigin(request);
+    after(() => sendVerificationEmail(created.user, origin).catch(() => undefined));
     return Response.json(
       { user: toPublicUser(created.user) },
       { status: 201, headers: { 'Set-Cookie': userCookieHeader(token) } },

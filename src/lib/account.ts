@@ -15,6 +15,8 @@ export interface UserRow {
   last_login_at?: string | null;
   /** Bumped to revoke every outstanding session (see user-auth.ts); absent means 0. */
   session_version?: number;
+  /** When the founder proved they own `email` (clicked the emailed link); absent until then. */
+  email_verified_at?: string | null;
 }
 
 /** A user document as stored, including the password hash (never send this to a client). */
@@ -25,6 +27,7 @@ export interface PublicUser {
   email: string;
   fullName: string;
   onboarding: OnboardingAnswers;
+  emailVerified: boolean;
 }
 
 export const toPublicUser = (u: UserRow): PublicUser => ({
@@ -32,6 +35,7 @@ export const toPublicUser = (u: UserRow): PublicUser => ({
   email: u.email,
   fullName: u.full_name,
   onboarding: u.onboarding ?? {},
+  emailVerified: Boolean(u.email_verified_at),
 });
 
 export const normalizeEmail = (email: string) => email.trim().toLowerCase();

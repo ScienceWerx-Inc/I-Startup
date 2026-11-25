@@ -8,6 +8,7 @@ import { Menu, X } from 'lucide-react';
 import { useAccount } from '@/hooks/use-account';
 import { cn } from '@/lib/utils';
 import { Wordmark } from '../../chrome';
+import { VerifyEmailBanner } from '../../verify-email-banner';
 import { ASSESSMENT_HREF, MY_ASSESSMENT_HREF, MY_COURSES_HREF, SIGN_IN_HREF, useTiming, wrap } from './primitives';
 
 export const NAV_LINKS = [
@@ -23,7 +24,8 @@ export const NAV_LINKS = [
  * "Get started" button is dropped, and the page can put its own status in `right`.
  *
  * Account-aware, like the rest of the app: signed out, "Sign In" and "Get Started" (the
- * onboarding, where accounts are created); signed in, "My Assessment", "My Courses", "Team" and "Sign Out".
+ * onboarding, where accounts are created); signed in, "My Assessment", "My Courses", "Team" and "Sign Out",
+ * plus a "Verify your email" strip until the founder confirms their address.
  */
 export function SiteNav({ variant = 'landing', right }: { variant?: 'landing' | 'page'; right?: ReactNode }) {
   const onLanding = variant === 'landing';
@@ -152,6 +154,8 @@ export function SiteNav({ variant = 'landing', right }: { variant?: 'landing' | 
           </button>
         </div>
       </div>
+
+      {user && !user.emailVerified ? <VerifyEmailBanner email={user.email} /> : null}
 
       <AnimatePresence initial={false}>
         {open && (

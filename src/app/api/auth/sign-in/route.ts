@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { normalizeEmail, toPublicUser, type StoredUser } from '@/lib/account';
 import { col, isDatabaseConfigured, nowIso } from '@/lib/db';
 import { DUMMY_HASH, verifyPassword } from '@/lib/passwords';
-import { signUserSession, userCookieHeader } from '@/lib/user-auth';
+import { sessionVersionOf, signUserSession, userCookieHeader } from '@/lib/user-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     }
     await doc.ref.update({ last_login_at: nowIso() });
     const user = { id: doc.id, ...stored };
-    const token = await signUserSession(user.id);
+    const token = await signUserSession(user.id, sessionVersionOf(user));
     return Response.json(
       { user: toPublicUser(user) },
       { headers: { 'Set-Cookie': userCookieHeader(token) } },

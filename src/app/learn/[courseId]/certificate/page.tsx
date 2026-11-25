@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { buttonVariants } from '@/components/ui/button';
 import { sessionUserId } from '@/lib/account';
+import { certificateVerifyUrl } from '@/lib/certificate-verify';
 import { CERTIFICATE_NAME } from '@/lib/gap-course/shared';
 import { getCourseGrade, upsertCourseGrade } from '@/lib/gap-course/grades';
 import { jobCompany } from '@/lib/gap-course/service';
@@ -41,6 +43,7 @@ export default async function CertificatePage({ params }: { params: Promise<{ co
     );
   }
 
+  const verifyUrl = certificateVerifyUrl(certificate.code, await siteOrigin());
   return (
     <div className="mx-auto max-w-5xl">
       <div className="no-print mb-4 flex items-center justify-between">
@@ -59,8 +62,19 @@ export default async function CertificatePage({ params }: { params: Promise<{ co
         code={certificate.code}
         issuedAt={certificate.issuedAt}
         revokedAt={certificate.revokedAt}
+        verifyUrl={verifyUrl}
         />
       </CertificateScroller>
     </div>
   );
+}
+
+/** The site's public origin for the printed verify link: `APP_URL`, else this request's host. */
+async function siteOrigin(): Promise<string | null> {
+  if (process.env.APP_URL) return process.env.APP_URL;
+  const h = await headers();
+  const host = h.get('x-forwarded-host') ?? h.get('host');
+  if (!host) return null;
+  const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
+  return `${proto}://${host}`;
 }

@@ -93,6 +93,7 @@ function Sheet({
   code,
   notice,
   status,
+  verifyUrl,
 }: {
   kicker: string;
   title: string;
@@ -103,6 +104,8 @@ function Sheet({
   code: string;
   notice: ReactNode;
   status: 'valid' | 'expired' | 'revoked';
+  /** Where anyone can check this certificate, printed under its number. */
+  verifyUrl?: string;
 }) {
   return (
     <div className="certificate-sheet print-exact @container relative aspect-[297/210] w-full overflow-hidden lining-nums bg-[#fdfcf8] text-[#0b1730] shadow-[0_1px_2px_rgba(11,23,48,0.08),0_12px_40px_-12px_rgba(11,23,48,0.25)]">
@@ -163,6 +166,9 @@ function Sheet({
         <p className="mt-[0.5cqw] font-mono text-[0.85cqw] tracking-[0.18em] text-[#0b1730]">
           CERTIFICATE NO. {code} · ISSUED BY ISTARTUP SCORE
         </p>
+        {verifyUrl ? (
+          <p className="mt-[0.3cqw] font-mono text-[0.8cqw] tracking-[0.12em] text-[#4a5568]">VERIFY AT {verifyUrl}</p>
+        ) : null}
       </div>
 
       {status !== 'valid' ? (
@@ -291,6 +297,7 @@ export function CourseCertificate({
   code,
   issuedAt,
   revokedAt,
+  verifyUrl,
 }: {
   companyName: string;
   founderName: string;
@@ -301,6 +308,8 @@ export function CourseCertificate({
   code: string;
   issuedAt: number;
   revokedAt?: number | null;
+  /** The public verification page for `code` (see /verify/[code]). */
+  verifyUrl?: string;
 }) {
   const validUntil = certificateExpiry(issuedAt);
   const expired = isCertificateExpired(issuedAt);
@@ -314,6 +323,7 @@ export function CourseCertificate({
       validUntil={validUntil}
       code={code}
       status={revokedAt ? 'revoked' : expired ? 'expired' : 'valid'}
+      verifyUrl={verifyUrl}
       seal={
         <Seal id={code} caption="411 CERTIFICATE · ISTARTUP">
           {grade ? (

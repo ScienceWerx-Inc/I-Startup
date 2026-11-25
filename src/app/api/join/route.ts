@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { sessionUserId, toPublicUser, getUser } from '@/lib/account';
 import { InviteError, inviteInfo, redeemInvite } from '@/lib/company';
-import { signUserSession, userCookieHeader } from '@/lib/user-auth';
+import { sessionVersionOf, signUserSession, userCookieHeader } from '@/lib/user-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   try {
     const { userId } = await redeemInvite({ token: parsed.data.token, password: parsed.data.password, signedInUserId: signedIn });
     const user = await getUser(userId);
-    const headers = signedIn ? undefined : { 'Set-Cookie': userCookieHeader(await signUserSession(userId)) };
+    const headers = signedIn ? undefined : { 'Set-Cookie': userCookieHeader(await signUserSession(userId, user ? sessionVersionOf(user) : 0)) };
     return Response.json({ user: user ? toPublicUser(user) : null }, { status: 201, headers });
   } catch (error) {
     if (error instanceof InviteError) return Response.json({ error: error.message }, { status: error.status });

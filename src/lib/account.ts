@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 
 import { col } from '@/lib/db';
-import { USER_COOKIE, verifyUserSession } from '@/lib/user-auth';
+import { USER_COOKIE, resolveUserSession } from '@/lib/user-auth';
 import type { OnboardingAnswers } from '@/modules/istartup-score/onboarding/fields';
 
 /** Server-only account lookups for route handlers. */
@@ -13,6 +13,8 @@ export interface UserRow {
   onboarding: OnboardingAnswers;
   created_at: string;
   last_login_at?: string | null;
+  /** Bumped to revoke every outstanding session (see user-auth.ts); absent means 0. */
+  session_version?: number;
 }
 
 /** A user document as stored, including the password hash (never send this to a client). */
@@ -34,17 +36,23 @@ export const toPublicUser = (u: UserRow): PublicUser => ({
 
 export const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
-/** The signed-in user's id from the session cookie, or null. Does not hit the database. */
+/**
+ * The signed-in user's id, or null when signed out, the account no longer exists, or the
+ * session was revoked. One user read; never throws (a failed read counts as signed out).
+ */
 export async function sessionUserId(): Promise<string | null> {
-  const store = await cookies();
-  return verifyUserSession(store.get(USER_COOKIE)?.value);
+  try {
+    return (await currentUser())?.id ?? null;
+  } catch (error) {
+    console.error('Session check failed:', error);
+    return null;
+  }
 }
 
-/** The signed-in user, or null when signed out or the account no longer exists. */
+/** The signed-in user, or null when signed out, the account no longer exists, or the session was revoked. */
 export async function currentUser(): Promise<UserRow | null> {
-  const id = await sessionUserId();
-  if (!id) return null;
-  return getUser(id);
+  const store = await cookies();
+  return resolveUserSession(store.get(USER_COOKIE)?.value, getUser);
 }
 
 export async function getUser(id: string): Promise<UserRow | null> {

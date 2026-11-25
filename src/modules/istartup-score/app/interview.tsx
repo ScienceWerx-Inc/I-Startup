@@ -193,10 +193,8 @@ function IstartupInterviewPageComponent() {
                     startupName: report.profile.name,
                     profile: { ...report.profile, onboarding },
                     companyInfo: null,
+                    // Scores and band are computed by the server from the answers.
                     answers: report.answers,
-                    scores: report.categories.map((c) => ({ category: c.title, score: c.percent })),
-                    finalScore: report.finalScore,
-                    band: report.band.code,
                 }),
             });
             if (!res.ok) throw new Error(`Save failed: ${res.status}`);

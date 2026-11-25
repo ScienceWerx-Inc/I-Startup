@@ -3,12 +3,16 @@ import { sessionUserId, type UserRow } from '@/lib/account';
 import { ensureCompany } from '@/lib/company';
 import { currentAdmin, unauthorized } from '@/lib/admin-guard';
 import { byIds, col, isDatabaseConfigured, newestFirst, nowIso, rows } from '@/lib/db';
-import { GeoSchema, ReportPayloadSchema, type ReportRow } from '@/lib/reports';
+import { GeoSchema, ReportPayloadSchema, scoreAnswers, type ReportRow } from '@/lib/reports';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** POST /api/reports — archives one assessment report. */
+/**
+ * POST /api/reports — archives one assessment report for the signed-in founder.
+ * The score, per-dimension scores and band are computed here from the answers; the
+ * client's own figures are never stored, since the Readiness Certificate prints them.
+ */
 export async function POST(request: Request) {
   if (!isDatabaseConfigured()) {
     return Response.json(
@@ -16,6 +20,9 @@ export async function POST(request: Request) {
       { status: 503 },
     );
   }
+  // The assessment (/interview) is founder-only, so a report always has an owner.
+  const userId = await sessionUserId();
+  if (!userId) return Response.json({ error: 'Sign in first.' }, { status: 401 });
 
   let body: unknown;
   try {
@@ -40,9 +47,8 @@ export async function POST(request: Request) {
     city: request.headers.get('x-vercel-ip-city'),
   });
 
-  const userId = await sessionUserId();
   // The company the assessment is for: its certificate and course belong to the whole team.
-  const company = userId ? await ensureCompany(userId).catch(() => null) : null;
+  const company = await ensureCompany(userId).catch(() => null);
 
   try {
     const id = randomUUID();
@@ -53,9 +59,7 @@ export async function POST(request: Request) {
       profile: p.profile,
       company_info: p.companyInfo ?? null,
       answers: p.answers,
-      scores: p.scores,
-      final_score: p.finalScore,
-      band: p.band,
+      ...scoreAnswers(p.answers),
       country: geo.country ?? null,
       region: geo.region ?? null,
       city: decodeURIComponent(geo.city ?? '') || null,

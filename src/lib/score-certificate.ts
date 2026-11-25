@@ -1,6 +1,6 @@
 import { companyForUser, isMember } from '@/lib/company';
 import { col, isId } from '@/lib/db';
-import type { ReportRow } from '@/lib/reports';
+import { scoreAnswers, storedAnswers, type ReportRow } from '@/lib/reports';
 import { MAX_SCORE } from '@/modules/istartup-score/assessment/bank';
 import { bandFor } from '@/modules/istartup-score/assessment/scoring';
 
@@ -16,13 +16,15 @@ export interface ScoreCertificateData {
 }
 
 export function scoreCertificateFrom(report: ReportRow): ScoreCertificateData {
-  const scores = Array.isArray(report.scores) ? (report.scores as Array<{ category: string; score: number }>) : [];
+  // Recomputed from the stored answers, so a report saved before scores were computed on
+  // the server can't print a score its answers don't earn (invalid answers count as 0).
+  const { final_score: finalScore, scores } = scoreAnswers(storedAnswers(report.answers));
   return {
     reportId: report.id,
     startupName: report.startup_name,
-    score: report.final_score,
+    score: finalScore,
     maxScore: MAX_SCORE,
-    band: bandFor(report.final_score).label,
+    band: bandFor(finalScore).label,
     dimensions: scores.map((s) => ({ label: s.category, percent: s.score })),
     issuedAt: Date.parse(report.created_at),
   };

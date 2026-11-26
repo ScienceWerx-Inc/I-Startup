@@ -1,0 +1,29 @@
+# Firebase App Hosting (backend: i-startup, project: i-startup-26124).
+# Only environment is set here; runtime settings stay at App Hosting's defaults.
+# Session keys and admin accounts live in Firestore (istartup_config), not here.
+env:
+  # Public origin used in emailed links and in cards other ScienceWerx apps show.
+  - variable: APP_URL
+    value: https://istartupscore.com
+    availability: [RUNTIME]
+
+  # Verification emails go through MoreWerx's partner email API (key limited to email:send).
+  - variable: MOREWERX_API_URL
+    value: https://morewerx.com
+    availability: [RUNTIME]
+  - variable: MOREWERX_PARTNER_KEY
+    secret: MOREWERX_PARTNER_KEY
+    availability: [RUNTIME]
+
+  # ScienceWerx Connect (see README). CONNECT_KEY is iStartup's own caller key
+  # (Secret Manager, granted to backend i-startup). CONNECT_CALLERS holds key
+  # hashes only, not secrets.
+  - variable: CONNECT_KEY
+    secret: CONNECT_KEY
+    availability: [RUNTIME]
+  - variable: CONNECT_CALLERS
+    value: "prismscore:3f24759bc1d243ce7b01ae215bdef9f60342ca4bfa53766cdcb9005a2ac98366:summary|certificates,founderfit:2dead8a10b55fdd9a810fda2e9922ca00d23bd21cc39b4b394ec073d7966a886:summary|certificates,inkeep:215a6b43d68240c9f252de73bd628407f2d5626ebb76e84cb1123a09cc4d7824:certificates,inkguard:59279716f9362f2921a4427bd315a1bbd7fbf2ec0f799cff3b902182b6903ebd:certificates"
+    availability: [RUNTIME]
+  - variable: CONNECT_PEERS
+    value: "founderfit=https://founder-fit--founder-fit-6a455.us-east4.hosted.app,prismscore=https://www.prismscore.us"
+    availability: [RUNTIME]

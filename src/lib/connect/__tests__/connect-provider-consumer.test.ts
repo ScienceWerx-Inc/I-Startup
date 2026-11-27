@@ -222,7 +222,7 @@ const prismCerts = {
     {
       code: 'PS-1A2B3C4D5E',
       title: 'Nile Freight AI Action Plan',
-      issuer: 'Prism School',
+      issuer: 'PrismScore',
       issuedAt: '2026-11-01T00:00:00.000Z',
       expiresAt: '2027-11-01T00:00:00.000Z',
       status: 'VALID',
@@ -234,7 +234,7 @@ const prismCerts = {
 afterEach(() => vi.restoreAllMocks());
 
 describe('iStartup as a Connect consumer', () => {
-  it('asks FounderFit for a summary and Prism School for certificates, with the key and subject', async () => {
+  it('asks FounderFit for a summary and PrismScore for certificates, with the key and subject', async () => {
     const calls: Array<{ url: string; auth: string | null; subject: string | null }> = [];
     const fetchStub = async (url: string, init: RequestInit) => {
       const h = new Headers(init.headers);

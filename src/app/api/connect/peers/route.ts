@@ -10,7 +10,7 @@ const NO_STORE = { 'Cache-Control': 'no-store' };
 
 /**
  * GET /api/connect/peers — what other ScienceWerx apps know about the signed-in founder:
- * FounderFit's summary card and Prism School's certificates, asked server-side with the
+ * FounderFit's summary card and PrismScore's certificates, asked server-side with the
  * founder's verified email. Peers that fail are left out; nothing about why reaches the
  * browser. An unverified founder gets `needsVerification` instead (when any peer is set up).
  */

@@ -110,7 +110,7 @@ confirm their address through a 24-hour link emailed after sign-up or joining a 
 | :--- | :--- | :--- |
 | `GET /api/connect/v1/summary` | peers with the `summary` scope | latest score / 500, band, weakest dimension(s), course progress |
 | `GET /api/connect/v1/certificates` | peers with the `certificates` scope | 411 course certificates (VALID / EXPIRED / REVOKED) and the latest Readiness Certificate |
-| `GET /api/connect/peers` | the signed-in founder | FounderFit's summary card and Prism School's certificates, shown under "Connected apps" on `/learn` |
+| `GET /api/connect/peers` | the signed-in founder | FounderFit's summary card and PrismScore's certificates, shown under "Connected apps" on `/learn` |
 
 Peers authenticate with `Authorization: Bearer swc_…` and name the person with
 `X-Connect-Subject: <email>`. Unknown or unverified people answer `{ "found": false }`.

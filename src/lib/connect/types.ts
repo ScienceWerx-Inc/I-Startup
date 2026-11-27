@@ -10,7 +10,7 @@ export type ConnectScope = (typeof CONNECT_SCOPES)[number];
 
 /** The apps that speak Connect, and how they're named on screen. */
 export const CONNECT_APPS = {
-  prismscore: 'Prism School',
+  prismscore: 'PrismScore',
   istartup: 'iStartup',
   founderfit: 'FounderFit',
   inkeep: 'InkKeep',

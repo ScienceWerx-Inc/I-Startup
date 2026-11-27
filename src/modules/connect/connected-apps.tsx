@@ -16,7 +16,7 @@ const day = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' }) : null;
 
 /**
- * "Connected apps": what the founder's other ScienceWerx apps (FounderFit, Prism School)
+ * "Connected apps": what the founder's other ScienceWerx apps (FounderFit, PrismScore)
  * know about them, fetched after the page renders so a slow peer never holds it up.
  * Hidden entirely when there is nothing to show; a prompt to verify when the founder's
  * email isn't confirmed yet (peers are matched by verified email only).
@@ -46,7 +46,7 @@ export function ConnectedApps() {
         <p className="text-sm text-ink">
           <span className="font-semibold">Connected apps.</span>{' '}
           <span className="text-mut">
-            Verify your email (see the link we sent you) to see your FounderFit results and Prism School
+            Verify your email (see the link we sent you) to see your FounderFit results and PrismScore
             certificates here.
           </span>
         </p>
